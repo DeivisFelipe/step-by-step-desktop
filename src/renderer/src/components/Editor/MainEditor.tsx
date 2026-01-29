@@ -3,6 +3,7 @@ import CodeEditor from './CodeEditor';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 import { FileIcon } from '../UI/FileIcon';
+import FlowEditor from '../Flow/FlowEditor';
 
 const MainEditor = () => {
   const { tabs, activeTabId, setActiveTab, closeTab } = useIDEStore();
@@ -43,6 +44,10 @@ const MainEditor = () => {
                <div className="text-4xl mb-4 font-thin">Step-by-Step Code</div>
                <p className="text-sm">Open a folder or select a step to begin.</p>
                <p className="text-xs mt-2 text-gray-600">Shortcuts: Ctrl+Shift+P</p>
+            </div>
+         ) : activeTab.type === 'FLOW' ? (
+            <div className="h-full w-full">
+               <FlowEditor />
             </div>
          ) : (
             <div className="h-full w-full">
