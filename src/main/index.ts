@@ -93,15 +93,25 @@ function setupIpcHandlers() {
 
   ipcMain.handle('file:read', async (_, path: string) => {
     try {
+      if (!fs.existsSync(path)) {
+         console.warn(`[file:read] File not found: ${path}`);
+         return null; 
+      }
       return await fs.promises.readFile(path, 'utf-8');
     } catch (e) {
-      console.error(e);
-      throw e;
+      console.error(`[file:read] Error reading ${path}:`, e);
+      return null;
     }
   });
 
   ipcMain.handle('file:write', async (_, path: string, content: string) => {
      try {
+       // Ensure dir exists?
+       // fs.promises.writeFile handles it? No, dir must exist.
+       const dir = path.substring(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
+       if (dir && !fs.existsSync(dir)) {
+          await fs.promises.mkdir(dir, { recursive: true });
+       }
        await fs.promises.writeFile(path, content, 'utf-8');
      } catch (e) {
        console.error(e);
