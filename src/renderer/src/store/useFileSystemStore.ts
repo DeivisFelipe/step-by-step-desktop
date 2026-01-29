@@ -14,6 +14,7 @@ interface FileSystemState {
   loadDir: (path: string) => Promise<void>;
   
   toggleDirectory: (path: string) => void;
+  collapseAll: () => void;
 
   openFile: (path: string) => Promise<void>;
   closeFile: (path: string) => void;
@@ -63,6 +64,19 @@ export const useFileSystemStore = create<FileSystemState>((set, get) => ({
         };
         return { fileTree: toggleNode(state.fileTree) };
      });
+  },
+
+  collapseAll: () => {
+    set((state) => {
+        const collapseRecursive = (nodes: FileNode[]): FileNode[] => {
+            return nodes.map(node => ({
+                ...node,
+                isExpanded: false,
+                children: node.children ? collapseRecursive(node.children) : undefined
+            }));
+        };
+        return { fileTree: collapseRecursive(state.fileTree) };
+    });
   },
 
   loadDir: async (path) => {
@@ -161,32 +175,32 @@ export const useFileSystemStore = create<FileSystemState>((set, get) => ({
   createFile: async (path, content = '') => {
     await window.api.writeFile(path, content);
     await get().openFile(path);
-    // Reload parent?
-    // For now rely on manual refresh or caller to reload parent. 
-    // Ideally we deduce parent and reload.
-    // const parent = path.substring(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
-    // if (parent) get().loadDir(parent);
+    const parent = path.replace(/[\\/][^\\/]+$/, '');
+    if (parent) await get().loadDir(parent);
   },
 
   createDirectory: async (path) => {
     await window.api.createDir(path);
-    // Reload parent?
+    const parent = path.replace(/[\\/][^\\/]+$/, '');
+    if (parent) await get().loadDir(parent);
   },
 
   deleteNode: async (path) => {
     await window.api.delete(path);
     get().closeFile(path);
-    // Reload parent?
+    const parent = path.replace(/[\\/][^\\/]+$/, '');
+    if (parent) await get().loadDir(parent);
   },
 
   renameNode: async (oldPath, newPath) => {
     await window.api.rename(oldPath, newPath);
     const { files, closeFile, openFile } = get();
     if (files[oldPath]?.isOpen) {
-       // Re-open with new path
        closeFile(oldPath);
        await openFile(newPath);
     }
+    const parent = newPath.replace(/[\\/][^\\/]+$/, '');
+    if (parent) await get().loadDir(parent);
   },
 
   saveSnapshot: (_stepId) => {

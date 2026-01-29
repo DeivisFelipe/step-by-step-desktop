@@ -2,6 +2,7 @@ import { useIDEStore } from '../../store/useIDEStore';
 import CodeEditor from './CodeEditor';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
+import { FileIcon } from '../UI/FileIcon';
 
 const MainEditor = () => {
   const { tabs, activeTabId, setActiveTab, closeTab } = useIDEStore();
@@ -21,6 +22,9 @@ const MainEditor = () => {
               )}
              onClick={() => setActiveTab(tab.id)}
            >
+             <span className="mr-2 flex-shrink-0">
+                <FileIcon name={tab.title} className="opacity-80" />
+             </span>
              <span className="truncate flex-1">{tab.title}</span>
              <button 
                 onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}

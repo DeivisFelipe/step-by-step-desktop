@@ -1,154 +1,29 @@
-import { useFileSystemStore, FileNode } from '../../store/useFileSystemStore';
-import { useIDEStore } from '../../store/useIDEStore';
-import { ChevronRight, File, Folder, FilePlus, FolderPlus, Edit, Trash } from 'lucide-react';
-import clsx from 'clsx';
 import { useState } from 'react';
+import { useFileSystemStore } from '../../store/useFileSystemStore';
+import { useIDEStore } from '../../store/useIDEStore';
+import { DndContext, DragEndEvent, useSensors, useSensor, PointerSensor, KeyboardSensor } from '@dnd-kit/core';
+import { FileItem } from './FileItem';
+import { FileExplorerHeader } from './FileExplorerHeader';
+import { FileInput } from './FileInput';
+import clsx from 'clsx';
 import ContextMenu, { ContextMenuItem } from '../UI/ContextMenu';
-import { DndContext, DragEndEvent, useDraggable, useDroppable, useSensors, useSensor, PointerSensor, KeyboardSensor } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
+import { FilePlus, FolderPlus, RefreshCw } from 'lucide-react';
 
-const FileItem = ({ node, depth }: { node: FileNode, depth: number }) => {
-  const { openFile, toggleDirectory, loadDir, createFile, createDirectory, renameNode, deleteNode } = useFileSystemStore();
-  const { activeFileId, openTab } = useIDEStore();
-  const [contextMenuPos, setContextMenuPos] = useState<{ x: number, y: number } | null>(null);
-
-  const { attributes, listeners, setNodeRef: setDraggableRef, transform, isDragging } = useDraggable({
-    id: node.path,
-    data: node
-  });
-
-  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
-    id: node.path,
-    disabled: !node.isDirectory
-  });
-  
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    paddingLeft: `${depth * 10}px` 
-  };
-
-  const rowStyle = {
-     paddingLeft: `${depth * 10 + 10}px`
-  };
-
-  const handleClick = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (node.isDirectory) {
-      if (!node.isExpanded && (!node.children || node.children.length === 0)) {
-         await loadDir(node.path);
-      } else {
-         toggleDirectory(node.path);
-      }
-    } else {
-      openTab({ id: node.path, type: 'FILE', title: node.name, path: node.path });
-      openFile(node.path);
-    }
-  };
-
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenuPos({ x: e.clientX, y: e.clientY });
-  };
-
-  const getParentPath = (path: string) => path.replace(/[\\/][^\\/]+$/, '');
-  const sep = node.path.indexOf('\\') !== -1 ? '\\' : '/';
-
-  const onNewFile = async () => {
-      const parent = node.isDirectory ? node.path : getParentPath(node.path);
-      const name = window.prompt("New File Name:");
-      if (name) {
-          await createFile(`${parent}${sep}${name}`);
-          await loadDir(parent);
-          if (node.isDirectory && !node.isExpanded) toggleDirectory(node.path); 
-      }
-  };
-
-  const onNewFolder = async () => {
-      const parent = node.isDirectory ? node.path : getParentPath(node.path);
-      const name = window.prompt("New Folder Name:");
-      if (name) {
-          await createDirectory(`${parent}${sep}${name}`);
-          await loadDir(parent);
-           if (node.isDirectory && !node.isExpanded) toggleDirectory(node.path);
-      }
-  };
-
-  const onRename = async () => {
-      const name = window.prompt("Rename to:", node.name);
-      if (name && name !== node.name) {
-          const parent = getParentPath(node.path);
-          await renameNode(node.path, `${parent}${sep}${name}`);
-          await loadDir(parent);
-      }
-  };
-
-  const onDelete = async () => {
-      if (window.confirm(`Delete ${node.name}?`)) {
-          const parent = getParentPath(node.path);
-          await deleteNode(node.path);
-          await loadDir(parent);
-      }
-  };
-
-  const menuItems: ContextMenuItem[] = [
-    { label: 'New File', icon: FilePlus, action: onNewFile },
-    { label: 'New Folder', icon: FolderPlus, action: onNewFolder },
-    { label: 'Rename', icon: Edit, action: onRename },
-    { label: 'Delete', icon: Trash, danger: true, action: onDelete }
-  ];
-
-  return (
-    <>
-      <div 
-         ref={setDraggableRef} 
-         style={{ ...style, zIndex: isDragging ? 999 : 'auto', position: 'relative' }} 
-         {...attributes} 
-         {...listeners}
-      >
-        <div 
-          ref={setDroppableRef}
-          className={clsx(
-             "flex items-center py-1 cursor-pointer hover:bg-[#2a2d2e] transition-colors",
-             activeFileId === node.path && "bg-[#37373d] text-white",
-             isOver && "bg-blue-800/50 border-2 border-blue-500" // Drop target highlight
-          )}
-          style={rowStyle}
-          onClick={handleClick}
-          onContextMenu={handleContextMenu}
-        >
-          <span className={clsx("mr-1 text-gray-400 transition-transform duration-200", node.isExpanded && "rotate-90")}>
-             {node.isDirectory ? (
-                <ChevronRight size={14} /> 
-             ) : <div className="w-3.5" />}
-          </span>
-          <span className="mr-1 text-blue-400">
-             {node.isDirectory ? <Folder size={14} /> : <File size={14} />}
-          </span>
-          <span className="text-sm truncate">{node.name}</span>
-        </div>
-        
-        {node.children && node.isExpanded && (
-           <div className="cursor-default" onPointerDown={e => e.stopPropagation()}> 
-              {node.children.map(child => (
-                 <FileItem key={child.path} node={child} depth={depth + 1} />
-              ))}
-           </div>
-        )}
-      </div>
-
-      <ContextMenu 
-        position={contextMenuPos} 
-        items={menuItems} 
-        onClose={() => setContextMenuPos(null)} 
-      />
-    </>
-  );
-};
+// Type definitions shared or imported
+interface EditingState {
+  type: 'rename' | 'createFile' | 'createFolder';
+  path: string; 
+}
 
 const FileExplorer = () => {
-  const { rootPath, setRootPath, loadDir, fileTree, renameNode } = useFileSystemStore();
+  const { rootPath, setRootPath, loadDir, fileTree, renameNode, createFile, createDirectory, collapseAll } = useFileSystemStore();
+  const { activeFileId, setActiveFileId } = useIDEStore(); 
   
+  const [isRootFocused, setIsRootFocused] = useState(false);
+  const [editingState, setEditingState] = useState<EditingState | null>(null);
+  const [isRootCreating, setIsRootCreating] = useState<'file' | 'folder' | null>(null);
+  const [rootContextMenuPos, setRootContextMenuPos] = useState<{ x: number, y: number } | null>(null);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor)
@@ -162,38 +37,153 @@ const FileExplorer = () => {
      }
   };
 
+  const handleRefresh = async () => {
+    if (rootPath) await loadDir(rootPath);
+  };
+  
+  const handleCollapseAll = () => {
+     collapseAll();
+  };
+
+  const handleRootCreate = (name: string) => {
+     if (!rootPath) return;
+     const sep = rootPath.includes('\\') ? '\\' : '/';
+     const path = `${rootPath}${sep}${name}`;
+     
+     if (isRootCreating === 'file') createFile(path);
+     else createDirectory(path);
+     
+     setIsRootCreating(null);
+  };
+
+  // Improved Logic:
+  // "Se tiver um folder selecionado tem que adicionar arquivo/folder a folder selecionada"
+  // "Se não, adicionar ao workspace"
+  const handleHeaderCreateFile = () => {
+     if (activeFileId) {
+        // Find node for activeFileId
+        // If it's a directory, adding to it.
+        // If it's a file, add to its parent.
+        const node = findNode(fileTree, activeFileId);
+        if (node) {
+           if (node.isDirectory) {
+               // Add to this folder
+               // We need to trigger "inline create" on that FileItem.
+               // But state is local to FileItem... 
+               // We lifted state `editingState` which has `{ type, path }`.
+               // So we can set editingState globally!
+               setEditingState({ type: 'createFile', path: node.path });
+               return; // Done
+           } else {
+               // Sibling
+               const parentPath = node.path.replace(/[\\/][^\\/]+$/, '');
+               // If parent is root?
+               if (parentPath === rootPath) {
+                   setIsRootCreating('file');
+               } else {
+                   setEditingState({ type: 'createFile', path: parentPath });
+               }
+               return;
+           }
+        }
+     }
+     // Fallback to root
+     setIsRootCreating('file');
+  };
+
+  const handleHeaderCreateFolder = () => {
+     if (activeFileId) {
+        const node = findNode(fileTree, activeFileId);
+        if (node) {
+           if (node.isDirectory) {
+               setEditingState({ type: 'createFolder', path: node.path });
+               return;
+           } else {
+               const parentPath = node.path.replace(/[\\/][^\\/]+$/, '');
+               if (parentPath === rootPath) {
+                   setIsRootCreating('folder');
+               } else {
+                   setEditingState({ type: 'createFolder', path: parentPath });
+               }
+               return;
+           }
+        }
+     }
+     setIsRootCreating('folder');
+  };
+
+  // Helper to find node
+  const findNode = (nodes: import('../../store/useFileSystemStore').FileNode[], path: string): import('../../store/useFileSystemStore').FileNode | null => {
+      for (const node of nodes) {
+          if (node.path === path) return node;
+          if (node.children) {
+              const found = findNode(node.children, path);
+              if (found) return found;
+          }
+      }
+      return null;
+  };
+
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+     e.stopPropagation();
+     setIsRootFocused(true);
+     // If clicking empty space, clear selection? Or keep focus on root?
+     // " Tem que selecionar a raiz"
+     setActiveFileId(null); 
+  };
+  
+  const handleRootContextMenu = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setRootContextMenuPos({ x: e.clientX, y: e.clientY });
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
+    // ... same ...
     const { active, over } = event;
     if (!over) return;
     if (active.id === over.id) return;
-
     const activePath = active.id as string;
     const overPath = over.id as string;
-
-    // Check if moving to self or children (prevent cycle)
     if (overPath.startsWith(activePath)) return;
-
     const name = activePath.split(/[\\/]/).pop();
     const sep = overPath.indexOf('\\') !== -1 ? '\\' : '/'; 
     const newPath = `${overPath}${sep}${name}`;
-
     if (newPath === activePath) return;
-
     await renameNode(activePath, newPath);
-    
-    // Reload parents
-    const oldParent = activePath.replace(/[\\/][^\\/]+$/, '');
-    await loadDir(oldParent);
-    await loadDir(overPath);
   };
 
+  const rootMenuItems: ContextMenuItem[] = [
+      { label: 'New File', icon: FilePlus, action: () => setIsRootCreating('file') },
+      { label: 'New Folder', icon: FolderPlus, action: () => setIsRootCreating('folder') },
+      { label: 'Refresh', icon: RefreshCw, action: handleRefresh },
+  ];
+
   return (
-    <div className="h-full flex flex-col bg-[#252526] text-[#cccccc]">
-       <div className="px-5 py-2 text-xs font-bold tracking-wider uppercase flex justify-between items-center">
-          <span>Explorer</span>
-       </div>
+    <div className="h-full flex flex-col bg-[#252526] text-[#cccccc]" onClick={() => setIsRootFocused(false)}>
+       <FileExplorerHeader 
+          workspaceName={rootPath ? rootPath.split(/[\\/]/).pop() || 'WORKSPACE' : ''}
+          onNewFile={handleHeaderCreateFile}
+          onNewFolder={handleHeaderCreateFolder}
+          onRefresh={handleRefresh}
+          onCollapseAll={handleCollapseAll}
+       />
        
-       <div className="flex-1 overflow-y-auto">
+       <div 
+         className={clsx(
+           "flex-1 overflow-y-auto relative outline-none",
+           isRootFocused && "ring-1 ring-blue-500 ring-inset" // Use ring to avoid layout shift
+         )}
+         onClick={handleBackgroundClick}
+         onContextMenu={rootPath ? handleRootContextMenu : undefined}
+         tabIndex={0}
+         onFocus={() => setIsRootFocused(true)}
+         onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget)) {
+               setIsRootFocused(false);
+            }
+         }}
+       >
           {!rootPath ? (
              <div className="p-4 text-center">
                 <p className="text-sm mb-4">No folder opened.</p>
@@ -206,16 +196,35 @@ const FileExplorer = () => {
              </div>
           ) : (
              <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-                <div className="pb-4">
-                   <div className="px-2 py-1 font-bold text-xs uppercase bg-[#333] truncate">
-                      {rootPath.split(/[\\/]/).pop()}
-                   </div>
+                <div className="pb-4 relative">
+                   {/* Root Level Creation */}
+                   {isRootCreating && (
+                      <FileInput 
+                         type={isRootCreating}
+                         depth={0}
+                         onSubmit={handleRootCreate}
+                         onCancel={() => setIsRootCreating(null)}
+                      />
+                   )}
+
                    {fileTree.map(node => (
-                      <FileItem key={node.path} node={node} depth={0} />
+                      <FileItem 
+                         key={node.path} 
+                         node={node} 
+                         depth={0} 
+                         editingState={editingState}
+                         setEditingState={setEditingState}
+                      />
                    ))}
                 </div>
              </DndContext>
           )}
+          
+          <ContextMenu 
+            position={rootContextMenuPos} 
+            items={rootMenuItems} 
+            onClose={() => setRootContextMenuPos(null)} 
+          />
        </div>
     </div>
   );
