@@ -11,10 +11,11 @@ export interface IAPI {
   delete: (path: string) => Promise<void>;
   rename: (oldPath: string, newPath: string) => Promise<void>;
   
-  createTerminal: () => void;
+  createTerminal: (options?: { shell?: string; cwd?: string }) => void;
   onTerminalData: (callback: (data: string) => void) => () => void;
   sendTerminalInput: (data: string) => void;
   resizeTerminal: (cols: number, rows: number) => void;
+  getAvailableShells: () => Promise<string[]>;
 }
 
 declare global {

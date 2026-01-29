@@ -11,14 +11,15 @@ const api = {
   delete: (path: string) => ipcRenderer.invoke('file:delete', path),
   rename: (oldPath: string, newPath: string) => ipcRenderer.invoke('file:rename', oldPath, newPath),
   
-  createTerminal: () => ipcRenderer.send('terminal:create'),
+  createTerminal: (options?: { shell?: string; cwd?: string }) => ipcRenderer.send('terminal:create', options),
   onTerminalData: (callback: (data: string) => void) => {
     const subscription = (_event: any, data: string) => callback(data);
     ipcRenderer.on('terminal:data', subscription);
     return () => ipcRenderer.removeListener('terminal:data', subscription);
   },
   sendTerminalInput: (data: string) => ipcRenderer.send('terminal:input', data),
-  resizeTerminal: (cols: number, rows: number) => ipcRenderer.send('terminal:resize', { cols, rows })
+  resizeTerminal: (cols: number, rows: number) => ipcRenderer.send('terminal:resize', { cols, rows }),
+  getAvailableShells: () => ipcRenderer.invoke('terminal:get-shells')
 }
 
 if (process.contextIsolated) {

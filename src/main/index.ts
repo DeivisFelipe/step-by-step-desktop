@@ -134,17 +134,57 @@ try {
 
 // ... (other handlers)
 
-  ipcMain.on('terminal:create', (event) => {
-    const shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+  ipcMain.handle('terminal:get-shells', async () => {
+     const shells: string[] = [];
+     if (os.platform() === 'win32') {
+        const potentialShells = [
+           'powershell.exe',
+           'cmd.exe',
+           'C:\\Program Files\\Git\\bin\\bash.exe',
+           'C:\\Windows\\System32\\wsl.exe'
+        ];
+        
+        for (const s of potentialShells) {
+           // Simple check if it exists or is in path (for just filename)
+           if (s.includes('\\')) {
+              if (fs.existsSync(s)) shells.push(s);
+           } else {
+              shells.push(s); // Assume basics exist
+           }
+        }
+     } else {
+        shells.push('/bin/bash', '/bin/zsh');
+     }
+     return shells;
+  });
+
+  ipcMain.on('terminal:create', (event, options?: { shell?: string; cwd?: string }) => {
+    let shell = options?.shell;
     
-    if (terminals['default']) return; 
+    if (!shell) {
+        shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+    }
+    
+    const cwd = options?.cwd || process.env.HOME || process.cwd();
+    
+    // Cleanup existing default
+    if (terminals['default']) {
+       try {
+         // @ts-ignore
+         const oldInfo = terminals['default'];
+         if (typeof oldInfo.kill === 'function') oldInfo.kill();
+         delete terminals['default'];
+       } catch (e) {
+          console.error("Failed to kill terminal", e);
+       }
+    }
     
     if (pty) {
         const ptyProcess = pty.spawn(shell, [], {
           name: 'xterm-color',
           cols: 80,
           rows: 30,
-          cwd: process.env.HOME || process.cwd(),
+          cwd: cwd,
           env: process.env
         });
 
@@ -152,6 +192,10 @@ try {
 
         ptyProcess.onData((data: string) => {
            event.sender.send('terminal:data', data);
+        });
+        
+        ptyProcess.onExit(({ exitCode, signal }) => {
+            event.sender.send('terminal:data', `\r\n[Process exited with code ${exitCode}]`);
         });
     } else {
         // Fallback using simple spawn
