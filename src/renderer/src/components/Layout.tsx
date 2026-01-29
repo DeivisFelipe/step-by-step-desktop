@@ -9,7 +9,7 @@ const Layout = () => {
   return (
     <div className="flex h-screen w-screen bg-[#1e1e1e] text-gray-300 overflow-hidden relative">
       <AnnotationBalloon />
-      <ConfigBalloon />
+{/* <ConfigBalloon /> */}
       
       {/* Activity Bar */}
       <ActivityBar />

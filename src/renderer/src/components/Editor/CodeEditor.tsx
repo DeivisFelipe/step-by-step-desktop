@@ -1,19 +1,32 @@
-import { useRef } from 'react';
-import Editor, { OnMount } from '@monaco-editor/react';
+import { useRef, useEffect } from 'react';
+import Editor, { OnMount, loader } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 import { useFileSystemStore } from '../../store/useFileSystemStore';
 import { useIDEStore } from '../../store/useIDEStore';
 import { useIDEContext } from '../../context/IDEContext';
 import { useLessonStore } from '../../store/useLessonStore';
 import { createRoot } from 'react-dom/client';
 
+// Configure Monaco to use local instance (avoids CDN/CSP issues)
+loader.config({ monaco });
+
 const CodeEditor = () => {
-  const { files } = useFileSystemStore();
+  const { files, openFile } = useFileSystemStore();
   const { activeTabId, tabs } = useIDEStore();
   const { tree, updateNode } = useLessonStore();
   const { editorRef } = useIDEContext();
   
   const activeTab = tabs.find(t => t.id === activeTabId);
   const widgetRoots = useRef<Map<string, any>>(new Map()); // Keep track of react roots to unmount
+
+  // Ensure file is loaded if active
+  useEffect(() => {
+     if (activeTab?.type === 'FILE' && activeTab.path) {
+         if (!files[activeTab.path]?.isOpen) {
+             openFile(activeTab.path);
+         }
+     }
+  }, [activeTab, files, openFile]);
 
   // Helper to find node content if it's a Step/Flow
   const getNodeContent = (id: string, nodes: any[]): string => {

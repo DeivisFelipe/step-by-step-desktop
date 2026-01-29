@@ -110,10 +110,15 @@ export const useFileSystemStore = create<FileSystemState>((set, get) => ({
 
   openFile: async (path) => {
     // Check if already open
-    if (get().files[path]?.isOpen) return;
+    if (get().files[path]?.isOpen) {
+        console.log(`[useFileSystemStore] File already open: ${path}`);
+        return;
+    }
 
     try {
+      console.log(`[useFileSystemStore] Opening file: ${path}`);
       const content = await window.api.readFile(path);
+      console.log(`[useFileSystemStore] Content loaded (${content.length} chars)`);
       // Detect language extension
       const ext = path.split('.').pop() || 'plaintext';
       const language = getLanguageFromExt(ext);

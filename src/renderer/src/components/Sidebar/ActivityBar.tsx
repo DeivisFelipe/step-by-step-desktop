@@ -1,5 +1,5 @@
 import { useIDEStore } from '../../store/useIDEStore';
-import { Files, List, Settings } from 'lucide-react';
+import { Files, List } from 'lucide-react';
 import clsx from 'clsx';
 
 const ActivityBar = () => {
@@ -28,9 +28,7 @@ const ActivityBar = () => {
           )}
         </div>
       ))}
-      <div className="mt-auto p-3 text-[#858585] hover:text-white cursor-pointer">
-         <Settings size={24} strokeWidth={1.5} />
-      </div>
+
     </div>
   );
 };
