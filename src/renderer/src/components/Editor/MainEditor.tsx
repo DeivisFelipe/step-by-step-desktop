@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import clsx from 'clsx';
 import { FileIcon } from '../UI/FileIcon';
 import FlowEditor from '../Flow/FlowEditor';
+import logo from '../../assets/logo.png';
 
 const MainEditor = () => {
   const { tabs, activeTabId, setActiveTab, closeTab } = useIDEStore();
@@ -41,7 +42,8 @@ const MainEditor = () => {
       <div className="flex-1 bg-[#1e1e1e] overflow-hidden">
          {!activeTab ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-500">
-               <div className="text-4xl mb-4 font-thin">Step-by-Step Code</div>
+               <img src={logo} alt="Logo" className="w-64 h-64 mb-6 opacity-90 hover:opacity-100 transition-opacity duration-500" />
+               <div className="text-4xl mb-4 font-thin tracking-wider">Step-by-Step Code</div>
                <p className="text-sm">Open a folder or select a step to begin.</p>
                <p className="text-xs mt-2 text-gray-600">Shortcuts: Ctrl+Shift+P</p>
             </div>
