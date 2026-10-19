@@ -2,6 +2,7 @@ import { useFileSystemStore } from '../store/useFileSystemStore'
 import { reportError, useIDEStore } from '../store/useIDEStore'
 import { useLessonStore } from '../store/useLessonStore'
 import { usePlayerStore } from '../store/usePlayerStore'
+import { useStageStore } from '../store/useStageStore'
 import { basename } from './paths'
 
 const RECENT_KEY = 'ssc-recent-folders'
@@ -65,10 +66,12 @@ export async function openWorkspace(path: string): Promise<void> {
   if (!(await confirmUnsavedChanges())) return
 
   try {
-    usePlayerStore.getState().clear()
     useIDEStore.getState().closeAllTabs()
+    useStageStore.getState().reset()
     await useFileSystemStore.getState().openFolder(path)
+    window.api.setWorkspaceRoot(path)
     await useLessonStore.getState().loadForWorkspace(path)
+    await usePlayerStore.getState().loadSession(path)
     rememberFolder(path)
     document.title = `${basename(path)} — Step-by-Step Code`
   } catch (e) {

@@ -1,6 +1,12 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./src/renderer/index.html', './src/renderer/src/**/*.{js,ts,jsx,tsx}'],
+  content: [
+    './src/renderer/index.html',
+    './src/renderer/overlay.html',
+    './src/renderer/src/**/*.{js,ts,jsx,tsx}',
+    './src/renderer/overlay/**/*.{js,ts,jsx,tsx}',
+    './src/renderer/common/**/*.{js,ts,jsx,tsx}'
+  ],
   theme: {
     extend: {
       colors: {

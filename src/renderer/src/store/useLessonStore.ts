@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { ActionType, LessonFile, LessonNode, NodeType, StepData } from '../types/schema'
+import { ActionKind, LessonFile, LessonNode, NodeType, StepAction, StepData } from '../types/schema'
 import {
   cloneWithNewIds,
   collectIds,
@@ -7,6 +7,7 @@ import {
   findNode,
   insertNode,
   mapNode,
+  migrateTree,
   newId,
   removeNode,
   siblingsOf
@@ -28,6 +29,7 @@ function initialTree(): LessonNode[] {
 }
 
 interface LessonStore {
+  title: string
   tree: LessonNode[]
   selectedNodeId: string | null
   /** Workspace whose lesson file is loaded; changes are auto-saved there. */
@@ -44,8 +46,17 @@ interface LessonStore {
   addNode: (type: NodeType, referenceId: string | null, title?: string) => string
   updateNode: (id: string, updates: Partial<Pick<LessonNode, 'title' | 'isExpanded'>>) => void
   updateStepData: (id: string, data: Partial<StepData>) => void
-  updateAction: (id: string, action: Partial<ActionType>) => void
-  setActionKind: (id: string, kind: ActionType['kind']) => void
+  setTitle: (title: string) => void
+  /** Replaces the whole lesson (imports). */
+  replaceTree: (tree: LessonNode[], title?: string) => void
+  /** Appends flows at the end of the lesson (imports). */
+  appendNodes: (nodes: LessonNode[]) => void
+
+  addAction: (stepId: string, kind: ActionKind, index?: number) => string
+  updateAction: (stepId: string, actionId: string, partial: Partial<StepAction>) => void
+  setActionKind: (stepId: string, actionId: string, kind: ActionKind) => void
+  removeAction: (stepId: string, actionId: string) => void
+  moveAction: (stepId: string, actionId: string, direction: 'up' | 'down') => void
   removeNode: (id: string) => void
   duplicateNode: (id: string) => void
 
@@ -57,7 +68,18 @@ interface LessonStore {
   placeFirst: (id: string, parentId: string) => void
 }
 
+function mapActions(
+  tree: LessonNode[],
+  stepId: string,
+  fn: (actions: StepAction[]) => StepAction[]
+): LessonNode[] {
+  return mapNode(tree, stepId, (node) =>
+    node.data ? { ...node, data: { ...node.data, actions: fn(node.data.actions) } } : node
+  )
+}
+
 export const useLessonStore = create<LessonStore>((set, get) => ({
+  title: '',
   tree: initialTree(),
   selectedNodeId: null,
   workspace: null,
@@ -66,16 +88,24 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
   loadForWorkspace: async (root) => {
     await flushLessonSave()
     let tree: LessonNode[] | null = null
+    let title = ''
     const raw = await window.api.readFile(lessonFilePath(root))
     if (raw !== null) {
       try {
         const parsed = JSON.parse(raw) as LessonFile
-        if (Array.isArray(parsed.tree)) tree = parsed.tree
+        if (Array.isArray(parsed.tree)) tree = migrateTree(parsed.tree)
+        title = parsed.title ?? ''
       } catch (e) {
         reportError(e, 'Arquivo da aula inválido')
       }
     }
-    set({ tree: tree ?? initialTree(), selectedNodeId: null, workspace: root, saveState: 'saved' })
+    set({
+      tree: tree ?? initialTree(),
+      title,
+      selectedNodeId: null,
+      workspace: root,
+      saveState: 'saved'
+    })
   },
 
   selectNode: (id) => set({ selectedNodeId: id }),
@@ -88,7 +118,7 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
       title: title || (type === 'FLOW' ? 'Novo fluxo' : 'Novo passo'),
       isExpanded: true,
       children: type === 'FLOW' ? [] : undefined,
-      data: type === 'STEP' ? { action: defaultAction('FILE') } : undefined
+      data: type === 'STEP' ? { actions: [defaultAction('FILE')] } : undefined
     }
 
     const { tree } = get()
@@ -125,26 +155,58 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
     }))
   },
 
-  updateAction: (id, action) => {
+  setTitle: (title) => set({ title }),
+
+  replaceTree: (tree, title) =>
+    set((state) => ({ tree, title: title ?? state.title, selectedNodeId: null })),
+
+  appendNodes: (nodes) =>
+    set((state) => ({ tree: [...state.tree, ...nodes.map((n) => ({ ...n, parentId: null }))] })),
+
+  addAction: (stepId, kind, index) => {
+    const action = defaultAction(kind)
     set((state) => ({
-      tree: mapNode(state.tree, id, (node) =>
-        node.data
-          ? {
-              ...node,
-              data: { ...node.data, action: { ...node.data.action, ...action } as ActionType }
-            }
-          : node
+      tree: mapActions(state.tree, stepId, (actions) => {
+        const copy = [...actions]
+        copy.splice(index ?? copy.length, 0, action)
+        return copy
+      })
+    }))
+    return action.id
+  },
+
+  updateAction: (stepId, actionId, partial) => {
+    set((state) => ({
+      tree: mapActions(state.tree, stepId, (actions) =>
+        actions.map((a) => (a.id === actionId ? ({ ...a, ...partial } as StepAction) : a))
       )
     }))
   },
 
-  setActionKind: (id, kind) => {
+  setActionKind: (stepId, actionId, kind) => {
     set((state) => ({
-      tree: mapNode(state.tree, id, (node) =>
-        node.data && node.data.action.kind !== kind
-          ? { ...node, data: { ...node.data, action: defaultAction(kind) } }
-          : node
+      tree: mapActions(state.tree, stepId, (actions) =>
+        actions.map((a) => (a.id === actionId && a.kind !== kind ? defaultAction(kind, a.id) : a))
       )
+    }))
+  },
+
+  removeAction: (stepId, actionId) => {
+    set((state) => ({
+      tree: mapActions(state.tree, stepId, (actions) => actions.filter((a) => a.id !== actionId))
+    }))
+  },
+
+  moveAction: (stepId, actionId, direction) => {
+    set((state) => ({
+      tree: mapActions(state.tree, stepId, (actions) => {
+        const index = actions.findIndex((a) => a.id === actionId)
+        const target = direction === 'up' ? index - 1 : index + 1
+        if (index < 0 || target < 0 || target >= actions.length) return actions
+        const copy = [...actions]
+        ;[copy[index], copy[target]] = [copy[target], copy[index]]
+        return copy
+      })
     }))
   },
 
@@ -236,9 +298,9 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 async function saveLesson(): Promise<void> {
-  const { workspace, tree } = useLessonStore.getState()
+  const { workspace, tree, title } = useLessonStore.getState()
   if (!workspace) return
-  const file: LessonFile = { version: 1, tree }
+  const file: LessonFile = { version: 2, title: title || undefined, tree }
   try {
     await window.api.writeFile(lessonFilePath(workspace), JSON.stringify(file, null, 2) + '\n')
     if (useLessonStore.getState().tree === tree) useLessonStore.setState({ saveState: 'saved' })
@@ -257,7 +319,8 @@ export async function flushLessonSave(): Promise<void> {
 }
 
 useLessonStore.subscribe((state, prev) => {
-  if (state.tree === prev.tree || !state.workspace || state.workspace !== prev.workspace) return
+  const changed = state.tree !== prev.tree || state.title !== prev.title
+  if (!changed || !state.workspace || state.workspace !== prev.workspace) return
   useLessonStore.setState({ saveState: 'saving' })
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(saveLesson, 400)

@@ -3,12 +3,30 @@ import { persist } from 'zustand/middleware'
 import { basename, isInside, replacePrefix } from '../lib/paths'
 import { useFileSystemStore } from './useFileSystemStore'
 
-export type ActivityBarItem = 'EXPLORER' | 'STEPS'
+export type ActivityBarItem = 'EXPLORER' | 'STEPS' | 'PRESENT'
+
+export type SpecialTabType =
+  | 'SLIDE'
+  | 'CHALLENGE'
+  | 'PREVIEW'
+  | 'SETTINGS'
+  | 'REHEARSAL'
+  | 'GIT_IMPORT'
 
 export interface Tab {
-  /** File path for FILE tabs, node id for STEP/FLOW tabs. */
+  /** File path for FILE tabs, node id for STEP/FLOW tabs, a fixed id for the others. */
   id: string
-  type: 'FILE' | 'STEP' | 'FLOW'
+  type: 'FILE' | 'STEP' | 'FLOW' | SpecialTabType
+}
+
+/** Tabs that exist at most once. */
+export const SPECIAL_TAB_IDS: Record<SpecialTabType, string> = {
+  SLIDE: 'tab:slide',
+  CHALLENGE: 'tab:challenge',
+  PREVIEW: 'tab:preview',
+  SETTINGS: 'tab:settings',
+  REHEARSAL: 'tab:rehearsal',
+  GIT_IMPORT: 'tab:git-import'
 }
 
 export interface Toast {
@@ -33,6 +51,8 @@ interface IDEStore {
 
   tabs: Tab[]
   activeTabId: string | null
+  /** Last file tab that was active; "active file" steps still target it when a slide is shown. */
+  lastFilePath: string | null
   toasts: Toast[]
   prompt: TextPrompt | null
 
@@ -44,6 +64,7 @@ interface IDEStore {
 
   openFileTab: (path: string) => void
   openNodeTab: (id: string, type: 'STEP' | 'FLOW') => void
+  openSpecialTab: (type: SpecialTabType) => void
   setActiveTab: (id: string) => void
   /** Asks to save unsaved changes first. Resolves to false if the user cancelled. */
   closeTab: (id: string) => Promise<boolean>
@@ -51,7 +72,7 @@ interface IDEStore {
   closeNodeTabs: (ids: string[]) => void
   closeAllTabs: () => void
   renamePath: (oldPath: string, newPath: string) => void
-  /** Path of the file in the active tab, if it is a file tab. */
+  /** Path of the file in the active tab, or of the last active file tab still open. */
   activeFilePath: () => string | null
 
   notify: (message: string, type?: Toast['type'], duration?: number) => void
@@ -76,6 +97,7 @@ export const useIDEStore = create<IDEStore>()(
 
       tabs: [],
       activeTabId: null,
+      lastFilePath: null,
       toasts: [],
       prompt: null,
 
@@ -93,7 +115,7 @@ export const useIDEStore = create<IDEStore>()(
       openFileTab: (path) => {
         const { tabs } = get()
         if (!tabs.some((t) => t.id === path)) set({ tabs: [...tabs, { id: path, type: 'FILE' }] })
-        set({ activeTabId: path })
+        set({ activeTabId: path, lastFilePath: path })
         useFileSystemStore.getState().loadFile(path)
       },
 
@@ -103,7 +125,17 @@ export const useIDEStore = create<IDEStore>()(
         set({ activeTabId: id })
       },
 
-      setActiveTab: (id) => set({ activeTabId: id }),
+      openSpecialTab: (type) => {
+        const id = SPECIAL_TAB_IDS[type]
+        const { tabs } = get()
+        if (!tabs.some((t) => t.id === id)) set({ tabs: [...tabs, { id, type }] })
+        set({ activeTabId: id })
+      },
+
+      setActiveTab: (id) => {
+        const tab = get().tabs.find((t) => t.id === id)
+        set(tab?.type === 'FILE' ? { activeTabId: id, lastFilePath: id } : { activeTabId: id })
+      },
 
       closeTab: async (id) => {
         const tab = get().tabs.find((t) => t.id === id)
@@ -150,7 +182,7 @@ export const useIDEStore = create<IDEStore>()(
       closeNodeTabs: (ids) => {
         const remove = new Set(ids)
         set((state) => {
-          const tabs = state.tabs.filter((t) => t.type === 'FILE' || !remove.has(t.id))
+          const tabs = state.tabs.filter((t) => !remove.has(t.id) || t.type === 'FILE')
           const activeTabId = tabs.some((t) => t.id === state.activeTabId)
             ? state.activeTabId
             : (tabs[tabs.length - 1]?.id ?? null)
@@ -165,14 +197,16 @@ export const useIDEStore = create<IDEStore>()(
           isInside(p, oldPath) ? replacePrefix(p, oldPath, newPath) : p
         set((state) => ({
           tabs: state.tabs.map((t) => (t.type === 'FILE' ? { ...t, id: move(t.id) } : t)),
-          activeTabId: state.activeTabId ? move(state.activeTabId) : null
+          activeTabId: state.activeTabId ? move(state.activeTabId) : null,
+          lastFilePath: state.lastFilePath ? move(state.lastFilePath) : null
         }))
       },
 
       activeFilePath: () => {
-        const { tabs, activeTabId } = get()
+        const { tabs, activeTabId, lastFilePath } = get()
         const tab = tabs.find((t) => t.id === activeTabId)
-        return tab?.type === 'FILE' ? tab.id : null
+        if (tab?.type === 'FILE') return tab.id
+        return lastFilePath && tabs.some((t) => t.id === lastFilePath) ? lastFilePath : null
       },
 
       notify: (message, type = 'info', duration = 4000) => {

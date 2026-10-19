@@ -47,3 +47,56 @@ textarea,
 .react-flow__controls-button:hover {
   background: #2a2d2e !important;
 }
+
+/* "Highlight lines" action */
+.monaco-editor .ssc-dim {
+  opacity: 0.3;
+  transition: opacity 200ms;
+}
+.monaco-editor .ssc-highlight-line {
+  background: rgba(250, 204, 21, 0.08);
+}
+.monaco-editor .ssc-highlight-gutter {
+  background: #facc15;
+  width: 4px !important;
+  margin-left: 4px;
+}
+.ssc-note-zone {
+  padding: 6px 0 6px 12px;
+}
+.ssc-note {
+  display: inline-block;
+  max-width: 90%;
+  background: #facc15;
+  color: #1f2937;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 22px;
+  white-space: pre-wrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+/* Lines changed by a "morph" or instant step */
+.monaco-editor .ssc-flash-line {
+  animation: ssc-flash 1.6s ease-out;
+}
+@keyframes ssc-flash {
+  from {
+    background: rgba(34, 197, 94, 0.35);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+/* Drawing / spotlight layer */
+.ssc-spotlight {
+  background: radial-gradient(
+    circle at var(--x, 50%) var(--y, 50%),
+    transparent 0,
+    transparent 120px,
+    rgba(0, 0, 0, 0.78) 150px
+  );
+}

@@ -3,7 +3,9 @@
   "include": [
     "src/renderer/src/env.d.ts",
     "src/renderer/src/**/*",
-    "src/renderer/src/**/*.tsx",
+    "src/renderer/overlay/**/*",
+    "src/renderer/common/**/*",
+    "src/shared/**/*",
     "src/preload/*.d.ts"
   ],
   "compilerOptions": {

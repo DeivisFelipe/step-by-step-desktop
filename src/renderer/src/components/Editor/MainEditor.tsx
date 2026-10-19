@@ -1,9 +1,27 @@
+import { useEffect } from 'react'
 import clsx from 'clsx'
-import { FileCode, Terminal, Workflow, X } from 'lucide-react'
-import { Tab, useIDEStore } from '../../store/useIDEStore'
+import {
+  FlaskConical,
+  GitBranch,
+  Globe,
+  LucideIcon,
+  Presentation,
+  Settings,
+  Trophy,
+  Workflow,
+  X
+} from 'lucide-react'
+import { SpecialTabType, Tab, useIDEStore } from '../../store/useIDEStore'
+import { useStageStore } from '../../store/useStageStore'
+import { StageView } from '../../../../shared/presentation'
+import { ChallengeTab, PreviewTab, SlideTab } from '../Stage/StageTabs'
+import SettingsView from '../Settings/SettingsView'
+import RehearsalView from '../Rehearsal/RehearsalView'
+import GitImportView from '../Import/GitImportView'
 import { useFileSystemStore } from '../../store/useFileSystemStore'
 import { useLessonStore } from '../../store/useLessonStore'
-import { findNode } from '../../lib/tree'
+import { findNode, primaryKind } from '../../lib/tree'
+import { ActionIcon } from '../UI/ActionIcon'
 import { basename, relativeTo } from '../../lib/paths'
 import { FileIcon } from '../UI/FileIcon'
 import CodeEditor from './CodeEditor'
@@ -11,25 +29,48 @@ import StepConfigEditor from './StepConfigEditor'
 import FlowEditor from '../Flow/FlowEditor'
 import Welcome from './Welcome'
 
+const SPECIAL: Record<SpecialTabType, { title: string; icon: LucideIcon; color: string }> = {
+  SLIDE: { title: 'Slide', icon: Presentation, color: 'text-emerald-400' },
+  CHALLENGE: { title: 'Desafio', icon: Trophy, color: 'text-orange-400' },
+  PREVIEW: { title: 'Preview', icon: Globe, color: 'text-cyan-300' },
+  SETTINGS: { title: 'Configurações', icon: Settings, color: 'text-gray-300' },
+  REHEARSAL: { title: 'Ensaio da aula', icon: FlaskConical, color: 'text-lime-300' },
+  GIT_IMPORT: { title: 'Importar do git', icon: GitBranch, color: 'text-orange-300' }
+}
+
+/** What the presentation shows when a tab is selected by hand. */
+const VIEW_OF_TAB: Partial<Record<Tab['type'], StageView>> = {
+  FILE: 'code',
+  SLIDE: 'slide',
+  CHALLENGE: 'challenge',
+  PREVIEW: 'preview'
+}
+
 const TabButton = ({ tab, active }: { tab: Tab; active: boolean }): React.JSX.Element => {
-  const node = useLessonStore((s) => (tab.type === 'FILE' ? null : findNode(s.tree, tab.id)))
+  const node = useLessonStore((s) =>
+    tab.type === 'STEP' || tab.type === 'FLOW' ? findNode(s.tree, tab.id) : null
+  )
+  const special = tab.type in SPECIAL ? SPECIAL[tab.type as SpecialTabType] : null
   const rootPath = useFileSystemStore((s) => s.rootPath)
   const isDirty = useFileSystemStore((s) => {
     const f = tab.type === 'FILE' ? s.files[tab.id] : undefined
     return !!f && f.content !== f.savedContent
   })
 
-  const title = tab.type === 'FILE' ? basename(tab.id) : (node?.title ?? 'Removido')
+  const title =
+    tab.type === 'FILE' ? basename(tab.id) : special ? special.title : (node?.title ?? 'Removido')
   const tooltip = tab.type === 'FILE' ? relativeTo(rootPath, tab.id) : title
   const icon =
     tab.type === 'FILE' ? (
       <FileIcon name={title} />
+    ) : special ? (
+      <special.icon size={16} className={special.color} />
     ) : tab.type === 'FLOW' ? (
       <Workflow size={16} className="text-[#dcb67a]" />
-    ) : node?.data?.action.kind === 'TERMINAL' ? (
-      <Terminal size={16} className="text-purple-400" />
+    ) : node ? (
+      <ActionIcon kind={primaryKind(node)} />
     ) : (
-      <FileCode size={16} className="text-sky-400" />
+      <FileIcon name="" />
     )
 
   const close = (e: React.MouseEvent): void => {
@@ -50,7 +91,14 @@ const TabButton = ({ tab, active }: { tab: Tab; active: boolean }): React.JSX.El
       onMouseDown={(e) => e.button === 1 && close(e)}
     >
       <span className="flex-none">{icon}</span>
-      <span className={clsx('flex-1 truncate', tab.type !== 'FILE' && 'italic')}>{title}</span>
+      <span
+        className={clsx(
+          'flex-1 truncate',
+          (tab.type === 'STEP' || tab.type === 'FLOW') && 'italic'
+        )}
+      >
+        {title}
+      </span>
       <button
         onClick={close}
         className="relative flex h-5 w-5 flex-none items-center justify-center rounded hover:bg-ide-border"
@@ -75,6 +123,12 @@ const MainEditor = (): React.JSX.Element => {
   const tabs = useIDEStore((s) => s.tabs)
   const activeTabId = useIDEStore((s) => s.activeTabId)
   const activeTab = tabs.find((t) => t.id === activeTabId)
+  const activeType = activeTab?.type
+
+  useEffect(() => {
+    const view = activeType ? VIEW_OF_TAB[activeType] : undefined
+    if (view) useStageStore.getState().setView(view)
+  }, [activeTabId, activeType])
 
   return (
     <div className="flex h-full flex-col">
@@ -93,8 +147,20 @@ const MainEditor = (): React.JSX.Element => {
           <CodeEditor path={activeTab.id} />
         ) : activeTab.type === 'FLOW' ? (
           <FlowEditor flowId={activeTab.id} />
-        ) : (
+        ) : activeTab.type === 'STEP' ? (
           <StepConfigEditor key={activeTab.id} stepId={activeTab.id} />
+        ) : activeTab.type === 'SLIDE' ? (
+          <SlideTab />
+        ) : activeTab.type === 'CHALLENGE' ? (
+          <ChallengeTab />
+        ) : activeTab.type === 'PREVIEW' ? (
+          <PreviewTab />
+        ) : activeTab.type === 'SETTINGS' ? (
+          <SettingsView />
+        ) : activeTab.type === 'REHEARSAL' ? (
+          <RehearsalView />
+        ) : (
+          <GitImportView />
         )}
       </div>
     </div>

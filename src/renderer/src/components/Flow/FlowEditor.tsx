@@ -17,8 +17,8 @@ import { useLessonStore } from '../../store/useLessonStore'
 import { useFileSystemStore } from '../../store/useFileSystemStore'
 import { useIDEStore } from '../../store/useIDEStore'
 import { getNextStep, usePlayerStore } from '../../store/usePlayerStore'
-import { findNode, flattenSteps } from '../../lib/tree'
-import { describeTarget } from '../../engine/ExecutionEngine'
+import { findNode, flattenSteps, primaryKind } from '../../lib/tree'
+import { describeAction } from '../../engine/ExecutionEngine'
 import { openNode } from '../../lib/lessonActions'
 
 type FlowNode = StepFlowNode | StartFlowNode
@@ -72,14 +72,10 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
           selected: step.id === selectedNodeId,
           data: {
             title: step.title,
-            subtitle:
-              step.data?.action.kind === 'TERMINAL'
-                ? `$ ${step.data.action.command.split('\n')[0]}`
-                : step.data
-                  ? describeTarget(step.data.action, rootPath)
-                  : '',
+            subtitle: step.data?.actions[0] ? describeAction(step.data.actions[0], rootPath) : '',
+            actions: step.data?.actions.length ?? 0,
             number: numbers.get(step.id) ?? index + 1,
-            kind: step.data?.action.kind ?? 'FILE',
+            kind: primaryKind(step),
             executed: executed.has(step.id),
             next: step.id === nextId,
             running: step.id === runningStepId

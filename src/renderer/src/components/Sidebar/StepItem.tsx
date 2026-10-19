@@ -9,13 +9,12 @@ import {
   ChevronRight,
   Copy,
   Edit,
-  FileCode,
   Folder,
   FolderOpen,
   Loader2,
   Play,
+  StepForward,
   Plus,
-  Terminal,
   Trash
 } from 'lucide-react'
 import { LessonNode } from '../../types/schema'
@@ -23,6 +22,8 @@ import { useLessonStore } from '../../store/useLessonStore'
 import { useIDEStore } from '../../store/useIDEStore'
 import { usePlayerStore } from '../../store/usePlayerStore'
 import { deleteNode, openNode, renameNode } from '../../lib/lessonActions'
+import { primaryKind } from '../../lib/tree'
+import { ActionIcon } from '../UI/ActionIcon'
 import ContextMenu, { ContextMenuItem } from '../UI/ContextMenu'
 
 interface StepItemProps {
@@ -67,6 +68,15 @@ const StepItem = ({
             action: () => usePlayerStore.getState().runStep(node.id)
           }
         ]),
+    ...(isFlow
+      ? []
+      : [
+          {
+            label: 'Ir até este passo',
+            icon: StepForward,
+            action: () => usePlayerStore.getState().goTo(node.id)
+          }
+        ]),
     { label: isFlow ? 'Abrir diagrama' : 'Editar passo', icon: Edit, action: () => openNode(node) },
     {
       label: isFlow ? 'Novo passo no fluxo' : 'Novo passo abaixo',
@@ -96,10 +106,8 @@ const StepItem = ({
     ) : (
       <Folder size={16} className="text-[#dcb67a]" />
     )
-  ) : node.data?.action.kind === 'TERMINAL' ? (
-    <Terminal size={16} className="text-purple-400" />
   ) : (
-    <FileCode size={16} className="text-sky-400" />
+    <ActionIcon kind={primaryKind(node)} />
   )
 
   return (

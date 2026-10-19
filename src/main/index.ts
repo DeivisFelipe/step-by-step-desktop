@@ -6,6 +6,11 @@ import os from 'os'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
 import type { IPty } from 'node-pty'
+import { getSettings, loadSettings, onSettingsChange, savePreset, updateSettings } from './settings'
+import { PresentationServer } from './presentationServer'
+import { ObsClient } from './obs'
+import { setupWorkspaceTools } from './workspaceTools'
+import type { PresenterPayload, StagePayload } from '../shared/presentation'
 
 // node-pty is a native module; if it fails to load we fall back to a plain child process.
 let pty: typeof import('node-pty') | null = null
@@ -25,6 +30,18 @@ interface TerminalProcess {
 const terminals = new Map<number, TerminalProcess>()
 let nextTerminalId = 1
 
+let mainWindow: BrowserWindow | null = null
+let presenterWindow: BrowserWindow | null = null
+let server: PresentationServer
+const obs = new ObsClient()
+
+/** Sends to every open window (main and presenter). */
+function sendToWindows(channel: string, ...args: unknown[]): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) win.webContents.send(channel, ...args)
+  }
+}
+
 function killAllTerminals(): void {
   for (const term of terminals.values()) {
     try {
@@ -37,7 +54,7 @@ function killAllTerminals(): void {
 }
 
 function createWindow(): void {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 900,
@@ -54,11 +71,15 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.maximize()
-    mainWindow.show()
+    mainWindow?.maximize()
+    mainWindow?.show()
   })
 
-  mainWindow.on('closed', killAllTerminals)
+  mainWindow.on('closed', () => {
+    killAllTerminals()
+    presenterWindow?.close()
+    mainWindow = null
+  })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -79,9 +100,25 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  const settings = loadSettings()
+  server = new PresentationServer(settings, join(__dirname, '../renderer'), (command) =>
+    mainWindow?.webContents.send('remote:command', command)
+  )
+  server.onInfo((info) => sendToWindows('server:info', info))
+  server.start()
+  obs.onStatus((status) => sendToWindows('obs:status', status))
+  obs.configure(settings.obs)
+  onSettingsChange((next) => {
+    server.updateSettings(next)
+    obs.configure(next.obs)
+    sendToWindows('settings:changed', next)
+  })
+
   setupFileSystemHandlers()
   setupDialogHandlers()
   setupTerminalHandlers()
+  setupPresentationHandlers()
+  setupWorkspaceTools()
 
   createWindow()
 
@@ -90,7 +127,10 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('before-quit', killAllTerminals)
+app.on('before-quit', () => {
+  killAllTerminals()
+  server?.stop()
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -256,9 +296,13 @@ function setupTerminalHandlers(): void {
       const term = spawnTerminal(
         shellPath,
         cwd,
-        (data) => send('terminal:data', id, data),
+        (data) => {
+          send('terminal:data', id, data)
+          server.terminalData(id, data)
+        },
         (code) => {
           terminals.delete(id)
+          server.terminalClosed(id)
           send('terminal:exit', id, code)
         }
       )
@@ -287,10 +331,48 @@ function setupTerminalHandlers(): void {
     const term = terminals.get(id)
     if (!term) return
     terminals.delete(id)
+    server.terminalClosed(id)
     try {
       term.kill()
     } catch {
       // already dead
     }
   })
+}
+
+function openPresenterWindow(): void {
+  if (presenterWindow && !presenterWindow.isDestroyed()) {
+    presenterWindow.focus()
+    return
+  }
+  const info = server.info()
+  if (!info.port) return
+  presenterWindow = new BrowserWindow({
+    width: 1100,
+    height: 760,
+    title: 'Visão do apresentador',
+    autoHideMenuBar: true,
+    backgroundColor: '#111827',
+    icon
+  })
+  presenterWindow.on('closed', () => (presenterWindow = null))
+  presenterWindow.loadURL(`${info.localUrl}/apresentador?token=${info.token}`)
+}
+
+function setupPresentationHandlers(): void {
+  ipcMain.handle('settings:get', () => getSettings())
+  ipcMain.handle('settings:update', (_, patch: unknown) => updateSettings(patch))
+  ipcMain.handle('settings:save-preset', (_, name: string, style) => savePreset(name, style))
+
+  ipcMain.handle('server:info', () => server.info())
+  ipcMain.on('stage:publish', (_, payload: StagePayload) => server.publishStage(payload))
+  ipcMain.on('presenter:publish', (_, payload: PresenterPayload) =>
+    server.publishPresenter(payload)
+  )
+  ipcMain.on('presenter:open', () => openPresenterWindow())
+  ipcMain.on('workspace:set-root', (_, root: string | null) => server.setWorkspace(root))
+
+  ipcMain.handle('obs:status', () => obs.status)
+  ipcMain.on('obs:set-scene', (_, scene: string) => obs.setScene(scene))
+  ipcMain.on('obs:chapter', (_, title: string) => obs.chapter(title))
 }

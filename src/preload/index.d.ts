@@ -1,4 +1,20 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
+import type {
+  ExecRequest,
+  ExecResult,
+  GitCommit,
+  GitExportStep,
+  GitFileChange,
+  ObsStatus,
+  SaveDialogOptions,
+  ServerInfo
+} from '../shared/ipc'
+import type {
+  AppSettings,
+  PresenterPayload,
+  RemoteCommand,
+  StagePayload
+} from '../shared/presentation'
 
 export interface DirEntry {
   name: string
@@ -16,6 +32,8 @@ export interface MessageOptions {
   cancelId?: number
 }
 
+export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
+
 export interface CustomAPI {
   openFolder: () => Promise<string | null>
   readDir: (path: string) => Promise<DirEntry[]>
@@ -30,6 +48,10 @@ export interface CustomAPI {
 
   /** Native message box; resolves to the index of the clicked button. */
   showMessage: (options: MessageOptions) => Promise<number>
+  showSaveDialog: (options: SaveDialogOptions) => Promise<string | null>
+  showOpenFileDialog: (options: SaveDialogOptions) => Promise<string | null>
+  /** Renders HTML to a PDF file. */
+  exportPdf: (html: string, path: string) => Promise<void>
 
   getAvailableShells: () => Promise<string[]>
   createTerminal: (options?: { shell?: string; cwd?: string }) => Promise<number>
@@ -38,6 +60,43 @@ export interface CustomAPI {
   sendTerminalInput: (id: number, data: string) => void
   resizeTerminal: (id: number, cols: number, rows: number) => void
   killTerminal: (id: number) => void
+
+  getSettings: () => Promise<AppSettings>
+  updateSettings: (partial: DeepPartial<AppSettings>) => Promise<AppSettings>
+  /** Replaces a whole preset (presets are records, not deep-merged). */
+  savePreset: (
+    name: string,
+    style: AppSettings['presentation']['presets'][string] | null
+  ) => Promise<AppSettings>
+  onSettingsChanged: (callback: (settings: AppSettings) => void) => () => void
+
+  getServerInfo: () => Promise<ServerInfo>
+  onServerInfo: (callback: (info: ServerInfo) => void) => () => void
+  publishStage: (payload: StagePayload) => void
+  publishPresenter: (payload: PresenterPayload) => void
+  onRemoteCommand: (callback: (command: RemoteCommand) => void) => () => void
+  openPresenterWindow: () => void
+  /** Folder served under /arquivos for slide images and previews. */
+  setWorkspaceRoot: (root: string | null) => void
+
+  obsStatus: () => Promise<ObsStatus>
+  onObsStatus: (callback: (status: ObsStatus) => void) => () => void
+  obsSetScene: (scene: string) => void
+  obsChapter: (title: string) => void
+
+  snapshotCreate: (root: string) => Promise<void>
+  snapshotExists: (root: string) => Promise<boolean>
+  snapshotRestore: (root: string) => Promise<void>
+  snapshotDelete: (root: string) => Promise<void>
+
+  rehearsalPrepare: (root: string) => Promise<string>
+  rehearsalWrite: (dir: string, files: Record<string, string | null>) => Promise<void>
+  rehearsalExec: (request: ExecRequest) => Promise<ExecResult>
+  rehearsalCleanup: (dir: string) => Promise<void>
+
+  gitLog: (root: string) => Promise<GitCommit[]>
+  gitCommitChanges: (root: string, hash: string) => Promise<GitFileChange[]>
+  gitExport: (root: string, target: string, steps: GitExportStep[]) => Promise<void>
 }
 
 declare global {
