@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useContext, useEffect, useMemo, useRef } from 'react'
 import { ShikiMagicMove } from '@shikijs/magic-move/react'
 import '@shikijs/magic-move/style.css'
 import type { Element, ElementContent } from 'hast'
 import { PresentationStyle, StageCode } from '../../shared/presentation'
 import { ReadyHighlighter } from './highlighter'
+import { ScaleContext } from './useFitBox'
 
 const LINE_HEIGHT = 1.6
 
@@ -46,7 +47,7 @@ function StaticCode({
               node.children.push({
                 type: 'element',
                 tagName: 'span',
-                properties: { style: 'display:block' },
+                properties: { style: 'display:inline-block;width:100%' },
                 children: [
                   {
                     type: 'element',
@@ -90,6 +91,7 @@ export const CodeContent = ({
   scroll?: boolean
 }): React.JSX.Element => {
   const scroller = useRef<HTMLDivElement>(null)
+  const globalScale = useContext(ScaleContext)
   const size = fontSize ?? style.fontSize
   const target = code.highlight
     ? (code.highlight.startLine + code.highlight.endLine) / 2
@@ -118,7 +120,8 @@ export const CodeContent = ({
         duration: code.transition === 'morph' ? style.morphDuration : 1,
         lineNumbers: style.lineNumbers,
         stagger: 0,
-        containerStyle: false
+        containerStyle: false,
+        globalScale
       }}
     />
   )

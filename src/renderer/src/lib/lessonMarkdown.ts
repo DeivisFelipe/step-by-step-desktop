@@ -70,7 +70,12 @@ function serializeAction(action: StepAction): string {
           'animacao',
           action.config.animation === 'TYPING' ? '' : ANIMATIONS[action.config.animation]
         ) +
-        attr('velocidade', action.config.animation === 'TYPING' ? action.config.typingSpeedMs : '')
+        attr(
+          'velocidade',
+          action.config.animation === 'TYPING' ? action.config.typingSpeedMs : ''
+        ) +
+        // Code blocks end with a line break; mark content that does not.
+        attr('quebra-final', action.content.endsWith('\n') ? '' : 'nao')
       return fence(info, action.operation === 'DELETE' ? '' : action.content)
     }
     case 'TERMINAL':
@@ -203,7 +208,7 @@ function actionFromFence(info: string, body: string): StepAction {
         targetMode: attrs.arquivo ? 'SPECIFIC_PATH' : 'ACTIVE_FILE',
         targetPath: attrs.arquivo || undefined,
         operation,
-        content: body,
+        content: attrs['quebra-final'] === 'nao' ? body : `${body}\n`,
         replaceToken: attrs.texto || undefined
       }
       action.config = {

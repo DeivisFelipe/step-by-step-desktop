@@ -4,7 +4,6 @@ import { ChallengeView, Markdown, SlideView } from '../common/StageViews'
 import { PARAMS, useConnection } from './connection'
 import { usePresentationStyle, useStage } from './style'
 import { AppWindow, Page } from './Frame'
-import { useFitBox } from './useFitBox'
 import { CodeContent } from './CodeContent'
 import { TerminalContent } from './TerminalContent'
 import { ReadyHighlighter, useHighlighter } from './highlighter'
@@ -20,7 +19,7 @@ const Caption = ({ text, size }: { text: string; size: number }): React.JSX.Elem
   return (
     <div
       key={text}
-      className="caption-in mx-auto max-w-[90%] rounded-2xl bg-black/65 px-[1.1em] py-[0.6em] text-center text-white shadow-2xl backdrop-blur"
+      className="caption-in mx-auto w-fit max-w-[90%] rounded-2xl bg-black/65 px-[1.1em] py-[0.6em] text-center text-white shadow-2xl backdrop-blur"
       style={{ fontSize: size }}
     >
       <Markdown source={text} />
@@ -28,38 +27,23 @@ const Caption = ({ text, size }: { text: string; size: number }): React.JSX.Elem
   )
 }
 
-/** A box with the style's aspect ratio, filling the space left on the page. */
-const FitArea = ({
-  style,
-  children
-}: {
-  style: PresentationStyle
-  children: React.ReactNode
-}): React.JSX.Element => {
-  const { ref, size } = useFitBox(style.aspect)
-  return (
-    <div ref={ref} className="flex min-h-0 w-full flex-1 items-center justify-center">
-      {size && <div style={{ width: size.width, height: size.height }}>{children}</div>}
-    </div>
-  )
-}
+/** The area left for the window after the captions. */
+const FitArea = ({ children }: { children: React.ReactNode }): React.JSX.Element => (
+  <div className="min-h-0 w-full flex-1">{children}</div>
+)
 
+/** Translucent card for slides and challenges, readable over any background. */
 const Card = ({
   style,
-  bg,
-  fg,
   children
 }: {
   style: PresentationStyle
-  bg: string
-  fg: string
   children: React.ReactNode
 }): React.JSX.Element => (
   <div
-    className="h-full w-full overflow-hidden"
+    className="h-full w-full overflow-hidden text-white backdrop-blur-md"
     style={{
-      background: bg,
-      color: fg,
+      background: 'rgba(10, 12, 20, 0.55)',
       borderRadius: style.radius,
       boxShadow: style.shadow ? '0 30px 80px rgba(0,0,0,0.45)' : 'none'
     }}
@@ -97,17 +81,17 @@ const StageContent = ({
   if (view === 'slide' || view === 'challenge') {
     const content =
       view === 'slide' && stage?.slide ? (
-        <SlideView slide={stage.slide} fontSize={style.fontSize * 1.1} />
+        <SlideView slide={stage.slide} fontSize={style.fontSize * 1.5} />
       ) : view === 'challenge' && stage?.challenge ? (
         <ChallengeView
           challenge={stage.challenge}
-          fontSize={style.fontSize * 1.1}
+          fontSize={style.fontSize * 1.5}
           clockOffset={clockOffset}
         />
       ) : null
     if (!content) return null
     return (
-      <Card style={style} bg={bg} fg={fg}>
+      <Card style={style}>
         <div key={view} className="fade-in h-full w-full">
           {content}
         </div>
@@ -157,7 +141,7 @@ const StagePage = ({ part }: { part: Part }): React.JSX.Element => {
   return (
     <Page style={style}>
       {style.captionPosition === 'top' && caption && <div className="mb-[2%]">{caption}</div>}
-      <FitArea style={style}>
+      <FitArea>
         <StageContent stage={stage} style={style} part={part} ready={ready} />
       </FitArea>
       {style.captionPosition === 'bottom' && caption && <div className="mt-[2%]">{caption}</div>}

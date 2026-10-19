@@ -127,7 +127,16 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 
     const stageBefore = useStageStore.getState().snapshot()
     const run = await executeStep(step, options)
-    if (!run.error || run.changes.length > 0) {
+    if (run.error) {
+      // A failed step leaves the project as it was (terminal commands excepted).
+      try {
+        await revertChanges(run.changes)
+        useStageStore.getState().restore(stageBefore)
+        closeStageTabs(stageBefore)
+      } catch {
+        // reported below with the original error
+      }
+    } else {
       set((state) => ({
         history: [...state.history, { stepId: id, changes: run.changes, stage: stageBefore }]
       }))

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { FileAction, LessonNode, StepAction } from '../types/schema'
+import { FileAction, StepAction } from '../types/schema'
 import { flattenSteps, resolvePlaceholders } from '../lib/tree'
 import { isAbsolute, joinPath, relativeTo, resolveInWorkspace } from '../lib/paths'
 import { useFileSystemStore } from '../store/useFileSystemStore'
@@ -317,7 +317,3 @@ export const useRehearsalStore = create<RehearsalStore>((set, get) => ({
     }
   }
 }))
-
-export function stepOf(tree: LessonNode[], id: string): LessonNode | undefined {
-  return flattenSteps(tree).find((s) => s.id === id)
-}

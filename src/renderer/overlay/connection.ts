@@ -37,6 +37,18 @@ export const useConnection = create<ConnectionStore>(() => ({
 type TerminalListener = (id: number, data: string, snapshot: boolean) => void
 const terminalListeners = new Set<TerminalListener>()
 const terminalBuffers = new Map<number, string>()
+const terminalCols = new Map<number, number>()
+const sizeListeners = new Set<(id: number, cols: number) => void>()
+
+/** Columns of the app terminal (lines wrap at this width). */
+export function terminalWidth(id: number): number | null {
+  return terminalCols.get(id) ?? null
+}
+
+export function onTerminalSize(listener: (id: number, cols: number) => void): () => void {
+  sizeListeners.add(listener)
+  return () => sizeListeners.delete(listener)
+}
 
 /** Subscribes to terminal output; returns the unsubscribe function. */
 export function onTerminal(listener: TerminalListener): () => void {
@@ -68,6 +80,11 @@ export function connect(): void {
   source.addEventListener('presenter', (e) =>
     useConnection.setState({ presenter: json<PresenterPayload>(e) })
   )
+  source.addEventListener('terminal-size', (e) => {
+    const { id, cols } = json<{ id: number; cols: number }>(e)
+    terminalCols.set(id, cols)
+    for (const listener of sizeListeners) listener(id, cols)
+  })
   source.addEventListener('terminal', (e) => {
     const { id, data, snapshot } = json<{ id: number; data: string; snapshot?: boolean }>(e)
     const text = (snapshot ? '' : (terminalBuffers.get(id) ?? '')) + data

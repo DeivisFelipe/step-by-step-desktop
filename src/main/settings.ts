@@ -54,9 +54,16 @@ export function loadSettings(): AppSettings {
 }
 
 function persist(): void {
+  // Only presets the user changed are saved, so updates to the built-in ones reach them.
+  const custom = Object.fromEntries(
+    Object.entries(settings.presentation.presets).filter(
+      ([name, style]) => JSON.stringify(style) !== JSON.stringify(BUILTIN_PRESETS[name])
+    )
+  )
+  const data = { ...settings, presentation: { ...settings.presentation, presets: custom } }
   try {
     fs.mkdirSync(app.getPath('userData'), { recursive: true })
-    fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2))
+    fs.writeFileSync(settingsPath(), JSON.stringify(data, null, 2))
   } catch (e) {
     console.error('[settings] não foi possível salvar', e)
   }

@@ -56,6 +56,7 @@ export class PresentationServer {
   private stage: StagePayload | null = null
   private presenter: PresenterPayload | null = null
   private terminals = new Map<number, string>()
+  private terminalSizes = new Map<number, { cols: number; rows: number }>()
   private workspace: string | null = null
   private settings: AppSettings
   private port = 0
@@ -168,8 +169,15 @@ export class PresentationServer {
     this.broadcast('terminal', { id, data })
   }
 
+  /** The app terminal's size, so mirrors wrap lines at the same width. */
+  terminalResized(id: number, cols: number, rows: number): void {
+    this.terminalSizes.set(id, { cols, rows })
+    this.broadcast('terminal-size', { id, cols, rows })
+  }
+
   terminalClosed(id: number): void {
     this.terminals.delete(id)
+    this.terminalSizes.delete(id)
   }
 
   private config(): { presentation: AppSettings['presentation'] } {
@@ -230,7 +238,7 @@ export class PresentationServer {
     if (page === '') return this.serveIndex(res)
     if (PAGES.has(page)) return this.servePage(page, url, res)
 
-    if (!is.dev && path.startsWith('/assets/')) {
+    if (!devServerUrl() && path.startsWith('/assets/')) {
       return this.serveFile(this.rendererDir, path.slice(1), res, 'public, max-age=3600')
     }
     res.writeHead(404).end('Não encontrado')
@@ -249,6 +257,7 @@ export class PresentationServer {
     }
     write('hello', { now: Date.now(), authorized: client.authorized })
     write('config', this.config())
+    for (const [id, size] of this.terminalSizes) write('terminal-size', { id, ...size })
     for (const [id, data] of this.terminals) write('terminal', { id, data, snapshot: true })
     if (this.stage) write('stage', this.stage)
     if (client.authorized && this.presenter) write('presenter', this.presenter)
@@ -256,14 +265,13 @@ export class PresentationServer {
   }
 
   private servePage(page: string, url: URL, res: http.ServerResponse): void {
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    const dev = devServerUrl()
+    if (dev) {
       // In development the page comes from the Vite server; it talks back to us.
       const params = new URLSearchParams(url.search)
       params.set('view', page)
       params.set('server', `http://127.0.0.1:${this.port}`)
-      res.writeHead(302, {
-        Location: `${process.env['ELECTRON_RENDERER_URL']}/overlay.html?${params}`
-      })
+      res.writeHead(302, { Location: `${dev}/overlay.html?${params}` })
       res.end()
       return
     }
@@ -319,6 +327,11 @@ export class PresentationServer {
       fs.createReadStream(full).pipe(res)
     })
   }
+}
+
+/** Vite dev server URL when running `npm run dev`; null when serving built files. */
+function devServerUrl(): string | null {
+  return is.dev ? (process.env['ELECTRON_RENDERER_URL'] ?? null) : null
 }
 
 function lanAddress(): string | null {

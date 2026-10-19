@@ -1,23 +1,40 @@
 import { PresentationStyle } from '../../shared/presentation'
+import { ScaleContext, useDesignScale } from './useFitBox'
 
-/** Page background around the presentation window. */
+/**
+ * Page background, with the stage drawn at its design resolution and scaled
+ * to fit (letterboxed by the background).
+ */
 export const Page = ({
   style,
   children
 }: {
   style: PresentationStyle
   children: React.ReactNode
-}): React.JSX.Element => (
-  <div
-    className="flex h-full w-full flex-col overflow-hidden"
-    style={{
-      background: style.transparent ? 'transparent' : style.background,
-      padding: style.padding
-    }}
-  >
-    {children}
-  </div>
-)
+}): React.JSX.Element => {
+  const { ref, fit } = useDesignScale(style.aspect)
+  return (
+    <div
+      ref={ref}
+      className="relative h-full w-full overflow-hidden"
+      style={{ background: style.transparent ? 'transparent' : style.background }}
+    >
+      {fit && (
+        <div
+          className="absolute left-1/2 top-1/2 flex flex-col"
+          style={{
+            width: fit.width,
+            height: fit.height,
+            padding: style.padding,
+            transform: `translate(-50%, -50%) scale(${fit.scale})`
+          }}
+        >
+          <ScaleContext.Provider value={fit.scale}>{children}</ScaleContext.Provider>
+        </div>
+      )}
+    </div>
+  )
+}
 
 /** A window (macOS / Windows / bare) with the code, terminal or preview inside. */
 export const AppWindow = ({

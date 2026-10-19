@@ -1,27 +1,45 @@
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useEffect, useRef, useState } from 'react'
 
-const RATIOS: Record<string, number> = { '16:9': 16 / 9, '4:3': 4 / 3, '9:16': 9 / 16, '1:1': 1 }
+/** Design resolution of each aspect; the stage is drawn at this size and scaled to fit. */
+const DESIGN: Record<string, [number, number]> = {
+  '16:9': [1920, 1080],
+  '4:3': [1440, 1080],
+  '1:1': [1080, 1080],
+  '9:16': [1080, 1920]
+}
 
-/** Largest box with the style's aspect ratio that fits the available area. */
-export function useFitBox(aspect: string): {
+export interface DesignScale {
+  width: number
+  height: number
+  scale: number
+}
+
+/**
+ * Fits the design resolution of `aspect` inside the element, so the stage looks
+ * the same at any OBS source size. "livre" uses the element size as is.
+ */
+export function useDesignScale(aspect: string): {
   ref: React.RefObject<HTMLDivElement | null>
-  size: { width: number; height: number } | null
+  fit: DesignScale | null
 } {
   const ref = useRef<HTMLDivElement>(null)
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  const [fit, setFit] = useState<DesignScale | null>(null)
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
     const measure = (): void => {
       const { width, height } = el.getBoundingClientRect()
-      const ratio = RATIOS[aspect]
-      if (!ratio) {
-        setSize({ width, height })
+      const design = DESIGN[aspect]
+      if (!design) {
+        setFit({ width, height, scale: 1 })
         return
       }
-      const fitWidth = Math.min(width, height * ratio)
-      setSize({ width: fitWidth, height: fitWidth / ratio })
+      setFit({
+        width: design[0],
+        height: design[1],
+        scale: Math.min(width / design[0], height / design[1])
+      })
     }
     measure()
     const observer = new ResizeObserver(measure)
@@ -29,5 +47,8 @@ export function useFitBox(aspect: string): {
     return () => observer.disconnect()
   }, [aspect])
 
-  return { ref, size }
+  return { ref, fit }
 }
+
+/** CSS scale applied to the stage (Magic Move needs it to place tokens). */
+export const ScaleContext = createContext(1)

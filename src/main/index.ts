@@ -320,6 +320,7 @@ function setupTerminalHandlers(): void {
   })
 
   ipcMain.on('terminal:resize', (_, id: number, cols: number, rows: number) => {
+    server.terminalResized(id, cols, rows)
     try {
       terminals.get(id)?.resize(cols, rows)
     } catch {

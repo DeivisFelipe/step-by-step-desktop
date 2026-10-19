@@ -58,7 +58,10 @@ function useHighlight(editor: Editor | null, path: string, content: string | und
       bubble.className = 'ssc-note'
       bubble.textContent = highlight.note
       node.appendChild(bubble)
-      const lines = Math.ceil(highlight.note.length / 90) + highlight.note.split('\n').length
+      const lines = Math.max(
+        Math.ceil(highlight.note.length / 90),
+        highlight.note.split('\n').length
+      )
       editor.changeViewZones((accessor) => {
         zoneId = accessor.addZone({
           afterLineNumber: end,

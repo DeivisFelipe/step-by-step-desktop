@@ -140,6 +140,22 @@ export function resolveTarget(target: FileTarget, operation?: FileAction['operat
 
 /** Plain string version of each operation (used when there is no typing animation). */
 export function applyOperation(current: string, action: FileAction, text: string): string {
+  // Work with LF and give the result back with the file's own line endings,
+  // so steps written in the app also match Windows (CRLF) files.
+  const crlf = current.includes('\r\n')
+  const lf = (value: string): string => value.replace(/\r\n/g, '\n')
+  const result = applyOperationLf(
+    lf(current),
+    {
+      ...action,
+      replaceToken: action.replaceToken === undefined ? undefined : lf(action.replaceToken)
+    },
+    lf(text)
+  )
+  return crlf ? result.replace(/\n/g, '\r\n') : result
+}
+
+function applyOperationLf(current: string, action: FileAction, text: string): string {
   switch (action.operation) {
     case 'CREATE':
     case 'OVERWRITE':
