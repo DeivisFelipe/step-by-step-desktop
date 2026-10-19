@@ -144,6 +144,21 @@ src/
 docs/               formato da aula em Markdown
 ```
 
+## 🔒 Privacidade
+
+O app não coleta nem envia dados pessoais ou de uso. Ele só acessa o GitHub para verificar e baixar atualizações. Detalhes na [política de privacidade](PRIVACY.md).
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/). _(Application pending: the installers published so far are not signed yet.)_
+
+- **Committers and reviewers:** [Deivis Felipe (@DeivisFelipe)](https://github.com/DeivisFelipe)
+- **Approvers:** [Deivis Felipe (@DeivisFelipe)](https://github.com/DeivisFelipe)
+
+Every release is built from this repository by [GitHub Actions](.github/workflows/release.yml), and each signing request is approved manually.
+
+**Privacy:** this program will not transfer any information to other networked systems unless specifically requested by the user, except for checking GitHub for updates. See the [privacy policy](PRIVACY.md).
+
 ## 📜 Licença
 
-MIT
+[MIT](LICENSE). Todas as bibliotecas incluídas no app também usam licenças open source (MIT, ISC, Apache-2.0, BSD e similares).

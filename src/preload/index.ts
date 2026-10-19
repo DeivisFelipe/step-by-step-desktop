@@ -64,6 +64,7 @@ const api: CustomAPI = {
   getUpdateStatus: () => ipcRenderer.invoke('updater:status'),
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   installUpdate: () => ipcRenderer.send('updater:install'),
+  openUpdateLog: () => ipcRenderer.send('updater:open-log'),
   onUpdateStatus: (callback) => listen('updater:status', callback),
 
   gitLog: (root) => ipcRenderer.invoke('git:log', root),
