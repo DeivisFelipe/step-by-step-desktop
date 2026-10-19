@@ -1,4 +1,4 @@
-import { ActionType, LessonNode } from '../types/schema'
+import { ActionKind, LessonNode, StepAction } from '../types/schema'
 
 export function findNode(nodes: LessonNode[], id: string): LessonNode | null {
   for (const node of nodes) {
@@ -87,6 +87,15 @@ export function siblingsOf(nodes: LessonNode[], parentId: string | null): Lesson
   return findNode(nodes, parentId)?.children ?? []
 }
 
+/** The flow a node belongs to (itself when it is a flow). */
+export function flowOf(nodes: LessonNode[], node: LessonNode): LessonNode | null {
+  let current: LessonNode | null = node
+  while (current && current.type !== 'FLOW') {
+    current = current.parentId ? findNode(nodes, current.parentId) : null
+  }
+  return current
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
@@ -98,26 +107,102 @@ export function newId(): string {
 /** Deep copy with fresh ids (used by "duplicate"). */
 export function cloneWithNewIds(node: LessonNode, parentId: string | null): LessonNode {
   const id = newId()
+  const copy = structuredClone(node)
   return {
-    ...structuredClone(node),
+    ...copy,
     id,
     parentId,
+    data: copy.data
+      ? { ...copy.data, actions: copy.data.actions.map((a) => ({ ...a, id: newId() })) }
+      : undefined,
     children: node.children?.map((child) => cloneWithNewIds(child, id))
   }
 }
 
-export function defaultAction(kind: ActionType['kind']): ActionType {
-  if (kind === 'TERMINAL') {
-    return { kind: 'TERMINAL', command: '', executeImmediately: true, typingAnimation: true }
-  }
-  return {
-    kind: 'FILE',
-    targetMode: 'ACTIVE_FILE',
-    operation: 'APPEND',
-    content: '',
-    config: { typingAnimation: true, typingSpeedMs: 30 }
+export function defaultAction(kind: ActionKind, id: string = newId()): StepAction {
+  switch (kind) {
+    case 'TERMINAL':
+      return { id, kind, command: '', executeImmediately: true, typingAnimation: true }
+    case 'WAIT':
+      return { id, kind, pattern: '', timeoutSec: 60 }
+    case 'SLIDE':
+      return { id, kind, markdown: '# Título\n\nTexto do slide' }
+    case 'HIGHLIGHT':
+      return { id, kind, targetMode: 'ACTIVE_FILE', startLine: 1, endLine: 1, note: '' }
+    case 'CHALLENGE':
+      return {
+        id,
+        kind,
+        markdown: '## Desafio\n\nDescreva o que a turma deve fazer.',
+        durationSec: 300
+      }
+    case 'PREVIEW':
+      return { id, kind, url: 'index.html' }
+    case 'OBS_SCENE':
+      return { id, kind, scene: '' }
+    case 'FILE':
+    default:
+      return {
+        id,
+        kind: 'FILE',
+        targetMode: 'ACTIVE_FILE',
+        operation: 'APPEND',
+        content: '',
+        config: { animation: 'TYPING', typingSpeedMs: 30 }
+      }
   }
 }
+
+export const ACTION_LABELS: Record<ActionKind, string> = {
+  FILE: 'Código em arquivo',
+  TERMINAL: 'Comando no terminal',
+  WAIT: 'Esperar o terminal',
+  SLIDE: 'Slide',
+  HIGHLIGHT: 'Destacar linhas',
+  CHALLENGE: 'Desafio',
+  PREVIEW: 'Preview',
+  OBS_SCENE: 'Cena do OBS'
+}
+
+/** Kind of the main action of a step (used for icons). */
+export function primaryKind(node: LessonNode): ActionKind {
+  return node.data?.actions[0]?.kind ?? 'FILE'
+}
+
+/**
+ * Upgrades lessons saved by older versions (one `action` per step,
+ * `typingAnimation` boolean) to the current format. Mutates nothing.
+ */
+export function migrateTree(nodes: unknown[]): LessonNode[] {
+  return (nodes as LessonNode[]).map((raw) => {
+    const node = { ...raw }
+    if (node.children) node.children = migrateTree(node.children)
+    if (node.type === 'STEP') {
+      const data = { ...(node.data ?? {}) } as StepData & { action?: Record<string, unknown> }
+      let actions = (data.actions ?? (data.action ? [data.action] : [])) as unknown as Record<
+        string,
+        unknown
+      >[]
+      actions = actions.map((a) => {
+        const action: Record<string, unknown> = { ...a, id: (a.id as string) || newId() }
+        if (action.kind === 'FILE') {
+          const config = { ...((action.config as Record<string, unknown>) ?? {}) }
+          if (!config.animation) {
+            config.animation = config.typingAnimation === false ? 'NONE' : 'TYPING'
+          }
+          delete config.typingAnimation
+          action.config = config
+        }
+        return action
+      })
+      delete data.action
+      node.data = { ...data, actions: actions as unknown as StepAction[] }
+    }
+    return node
+  })
+}
+
+type StepData = NonNullable<LessonNode['data']>
 
 /** `[[Name:value]]` placeholders let the presenter tweak values before running a step. */
 export const PLACEHOLDER_REGEX = /\[\[([^:\]]+):([^\]]*)\]\]/g

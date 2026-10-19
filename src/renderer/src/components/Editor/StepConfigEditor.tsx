@@ -1,27 +1,61 @@
+import { useState } from 'react'
 import clsx from 'clsx'
 import Editor from '@monaco-editor/react'
-import { FileCode, Loader2, Play, Terminal, Trash } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Loader2,
+  Play,
+  Plus,
+  StepForward,
+  Trash,
+  X
+} from 'lucide-react'
 import { useLessonStore } from '../../store/useLessonStore'
 import { useFileSystemStore } from '../../store/useFileSystemStore'
 import { usePlayerStore } from '../../store/usePlayerStore'
-import { FileAction, FileOperation, LessonNode, TerminalAction } from '../../types/schema'
-import { findNode, findPlaceholders } from '../../lib/tree'
+import { useTerminalStore } from '../../store/useTerminalStore'
+import { useSettingsStore } from '../../store/useSettingsStore'
+import {
+  ActionKind,
+  ChallengeAction,
+  FileAction,
+  FileAnimation,
+  FileOperation,
+  FileTarget,
+  HighlightAction,
+  LessonNode,
+  ObsSceneAction,
+  PreviewAction,
+  SlideAction,
+  StepAction,
+  TerminalAction,
+  WaitAction
+} from '../../types/schema'
+import { ACTION_LABELS, findNode, findPlaceholders } from '../../lib/tree'
 import { languageFromPath } from '../../lib/paths'
-import { describeTarget } from '../../engine/ExecutionEngine'
+import { describeAction, resolveAssetUrl } from '../../engine/ExecutionEngine'
 import { deleteNode } from '../../lib/lessonActions'
 import { EDITOR_OPTIONS } from '../../lib/monaco'
+import { ActionIcon } from '../UI/ActionIcon'
+import { Markdown, SlideView } from '../../../common/StageViews'
 
-const OPERATIONS: { value: FileOperation; label: string; hint: string }[] = [
-  { value: 'CREATE', label: 'Criar arquivo', hint: 'cria o arquivo com o conteúdo abaixo' },
-  { value: 'APPEND', label: 'Acrescentar ao final', hint: 'acrescenta o conteúdo ao final de' },
-  { value: 'PREPEND', label: 'Inserir no início', hint: 'insere o conteúdo no início de' },
-  { value: 'REPLACE_TOKEN', label: 'Substituir texto', hint: 'substitui um trecho de' },
-  {
-    value: 'CURSOR_POSITION',
-    label: 'Inserir no cursor',
-    hint: 'insere o conteúdo na posição do cursor em'
-  },
-  { value: 'OVERWRITE', label: 'Sobrescrever arquivo', hint: 'substitui todo o conteúdo de' }
+const OPERATIONS: { value: FileOperation; label: string }[] = [
+  { value: 'CREATE', label: 'Criar arquivo' },
+  { value: 'APPEND', label: 'Acrescentar ao final' },
+  { value: 'PREPEND', label: 'Inserir no início' },
+  { value: 'REPLACE_TOKEN', label: 'Substituir texto' },
+  { value: 'INSERT_AFTER', label: 'Inserir depois de um texto' },
+  { value: 'CURSOR_POSITION', label: 'Inserir no cursor' },
+  { value: 'OVERWRITE', label: 'Sobrescrever arquivo' },
+  { value: 'DELETE', label: 'Excluir arquivo' }
+]
+
+const ANIMATIONS: { value: FileAnimation; label: string }[] = [
+  { value: 'TYPING', label: 'Digitação' },
+  { value: 'MORPH', label: 'Transformação suave (magic move)' },
+  { value: 'NONE', label: 'Sem animação' }
 ]
 
 const LANGUAGES = [
@@ -43,9 +77,20 @@ const LANGUAGES = [
   'shell'
 ]
 
+const ADDABLE: ActionKind[] = [
+  'FILE',
+  'TERMINAL',
+  'HIGHLIGHT',
+  'SLIDE',
+  'CHALLENGE',
+  'WAIT',
+  'PREVIEW',
+  'OBS_SCENE'
+]
+
 const input =
   'rounded border border-ide-border bg-ide-input px-2 py-1.5 text-[13px] text-white outline-none focus:border-ide-accent'
-const label = 'mb-1 block text-[12px] font-semibold text-gray-400'
+const labelClass = 'mb-1 block text-[12px] font-semibold text-gray-400'
 
 const Field = ({
   title,
@@ -54,12 +99,12 @@ const Field = ({
   className
 }: {
   title: string
-  hint?: string
+  hint?: React.ReactNode
   children: React.ReactNode
   className?: string
 }): React.JSX.Element => (
   <div className={className}>
-    <label className={label}>{title}</label>
+    <label className={labelClass}>{title}</label>
     {children}
     {hint && <p className="mt-1 text-[11px] text-ide-muted">{hint}</p>}
   </div>
@@ -125,7 +170,7 @@ const Placeholders = ({
   }
 
   return (
-    <div className="rounded border border-ide-border bg-ide-panel p-3">
+    <div className="rounded border border-ide-border bg-ide-bg p-3">
       <div className="mb-2 text-[12px] font-semibold text-gray-400">Variáveis</div>
       <div className="grid grid-cols-2 gap-3">
         {placeholders.map((p, i) => (
@@ -142,24 +187,66 @@ const Placeholders = ({
   )
 }
 
-const FileActionForm = ({
-  step,
-  action
+/** Target file selector shared by file and highlight actions. */
+const TargetFields = ({
+  target,
+  update,
+  forcePath
 }: {
-  step: LessonNode
-  action: FileAction
+  target: FileTarget
+  update: (partial: Partial<FileTarget>) => void
+  forcePath?: boolean
 }): React.JSX.Element => {
-  const update = (partial: Partial<FileAction>): void =>
-    useLessonStore.getState().updateAction(step.id, partial)
+  const usesPath = forcePath || target.targetMode === 'SPECIFIC_PATH'
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      {!forcePath && (
+        <Field title="Arquivo alvo">
+          <select
+            className={clsx(input, 'w-full')}
+            value={target.targetMode}
+            onChange={(e) => update({ targetMode: e.target.value as FileTarget['targetMode'] })}
+          >
+            <option value="SPECIFIC_PATH">Caminho específico</option>
+            <option value="ACTIVE_FILE">Arquivo aberto no editor</option>
+          </select>
+        </Field>
+      )}
+      {usesPath && (
+        <Field
+          title="Caminho do arquivo"
+          hint="Relativo à pasta aberta."
+          className={forcePath ? 'col-span-2' : ''}
+        >
+          <input
+            className={clsx(input, 'w-full font-mono')}
+            value={target.targetPath ?? ''}
+            placeholder="src/index.js"
+            onChange={(e) => update({ targetPath: e.target.value })}
+            spellCheck={false}
+          />
+        </Field>
+      )}
+    </div>
+  )
+}
+
+type FormProps<T extends StepAction> = {
+  step: LessonNode
+  action: T
+  update: (partial: Partial<T>) => void
+}
+
+const FileActionForm = ({ step, action, update }: FormProps<FileAction>): React.JSX.Element => {
   const updateConfig = (partial: Partial<FileAction['config']>): void =>
     update({ config: { ...action.config, ...partial } })
-
-  const usesPath = action.operation === 'CREATE' || action.targetMode === 'SPECIFIC_PATH'
+  const isCreate = action.operation === 'CREATE'
+  const usesPath = isCreate || action.targetMode === 'SPECIFIC_PATH'
   const language =
     action.config.language || (usesPath ? languageFromPath(action.targetPath) : 'plaintext')
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <Field title="Operação">
           <select
@@ -174,39 +261,33 @@ const FileActionForm = ({
             ))}
           </select>
         </Field>
-        {action.operation !== 'CREATE' && (
-          <Field title="Arquivo alvo">
+        {action.operation !== 'DELETE' && (
+          <Field title="Animação">
             <select
               className={clsx(input, 'w-full')}
-              value={action.targetMode}
-              onChange={(e) => update({ targetMode: e.target.value as FileAction['targetMode'] })}
+              value={action.config.animation}
+              onChange={(e) => updateConfig({ animation: e.target.value as FileAnimation })}
             >
-              <option value="SPECIFIC_PATH">Caminho específico</option>
-              <option value="ACTIVE_FILE">Arquivo aberto no editor</option>
+              {ANIMATIONS.map((a) => (
+                <option key={a.value} value={a.value}>
+                  {a.label}
+                </option>
+              ))}
             </select>
           </Field>
         )}
       </div>
 
-      {usesPath && (
-        <Field
-          title="Caminho do arquivo"
-          hint="Relativo à pasta aberta. Pastas que não existem são criadas."
-        >
-          <input
-            className={clsx(input, 'w-full font-mono')}
-            value={action.targetPath ?? ''}
-            placeholder="src/index.js"
-            onChange={(e) => update({ targetPath: e.target.value })}
-            spellCheck={false}
-          />
-        </Field>
-      )}
+      <TargetFields target={action} update={update} forcePath={isCreate} />
 
-      {action.operation === 'REPLACE_TOKEN' && (
+      {(action.operation === 'REPLACE_TOKEN' || action.operation === 'INSERT_AFTER') && (
         <Field
-          title="Texto a substituir"
-          hint="A primeira ocorrência deste texto no arquivo é substituída pelo conteúdo."
+          title={action.operation === 'REPLACE_TOKEN' ? 'Texto a substituir' : 'Inserir depois de'}
+          hint={
+            action.operation === 'REPLACE_TOKEN'
+              ? 'A primeira ocorrência deste texto é trocada pelo conteúdo.'
+              : 'O conteúdo é digitado logo após a primeira ocorrência deste texto.'
+          }
         >
           <input
             className={clsx(input, 'w-full font-mono')}
@@ -218,121 +299,402 @@ const FileActionForm = ({
         </Field>
       )}
 
-      <div className="space-y-2">
-        <Check
-          checked={action.config.typingAnimation}
-          onChange={(typingAnimation) => updateConfig({ typingAnimation })}
-        >
-          Digitação animada
-        </Check>
-        {action.config.typingAnimation && (
-          <SpeedSlider
-            value={action.config.typingSpeedMs ?? 30}
-            onChange={(typingSpeedMs) => updateConfig({ typingSpeedMs })}
-          />
-        )}
-      </div>
-
-      <Field title="Conteúdo">
-        <div className="mb-1 flex justify-end">
-          <select
-            className="rounded border border-ide-border bg-ide-input px-1 py-0.5 text-[11px] text-gray-300 outline-none"
-            value={language}
-            onChange={(e) => updateConfig({ language: e.target.value })}
-            title="Linguagem (apenas para o realce de sintaxe)"
+      {action.operation !== 'DELETE' && (
+        <>
+          {action.config.animation === 'TYPING' && (
+            <SpeedSlider
+              value={action.config.typingSpeedMs ?? 30}
+              onChange={(typingSpeedMs) => updateConfig({ typingSpeedMs })}
+            />
+          )}
+          <Field
+            title="Conteúdo"
+            hint={
+              <>
+                Use <code className="text-gray-300">[[Nome:valor]]</code> para criar variáveis
+                ajustáveis antes de executar.
+              </>
+            }
           >
-            {[...new Set([language, ...LANGUAGES])].map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="h-72 overflow-hidden rounded border border-ide-border">
-          <Editor
-            height="100%"
-            theme="vs-dark"
-            path={`ssc-step://${step.id}`}
-            language={language}
-            value={action.content}
-            onChange={(value) => update({ content: value ?? '' })}
-            options={{ ...EDITOR_OPTIONS, fontSize: 13, lineNumbersMinChars: 3 }}
-          />
-        </div>
-        <p className="mt-1 text-[11px] text-ide-muted">
-          Use <code className="text-gray-300">[[Nome:valor]]</code> para criar variáveis que podem
-          ser ajustadas antes de executar.
-        </p>
-      </Field>
-
-      <Placeholders text={action.content} onChange={(content) => update({ content })} />
+            <div className="mb-1 flex justify-end">
+              <select
+                className="rounded border border-ide-border bg-ide-input px-1 py-0.5 text-[11px] text-gray-300 outline-none"
+                value={language}
+                onChange={(e) => updateConfig({ language: e.target.value })}
+                title="Linguagem (apenas para o realce de sintaxe)"
+              >
+                {[...new Set([language, ...LANGUAGES])].map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="h-64 overflow-hidden rounded border border-ide-border">
+              <Editor
+                height="100%"
+                theme="vs-dark"
+                path={`ssc-step://${step.id}/${action.id}`}
+                language={language}
+                value={action.content}
+                onChange={(value) => update({ content: value ?? '' })}
+                options={{ ...EDITOR_OPTIONS, fontSize: 13, lineNumbersMinChars: 3 }}
+              />
+            </div>
+          </Field>
+          <Placeholders text={action.content} onChange={(content) => update({ content })} />
+        </>
+      )}
     </div>
   )
 }
 
-const TerminalActionForm = ({
+const TerminalNameField = ({
+  value,
+  onChange
+}: {
+  value: string | undefined
+  onChange: (value: string) => void
+}): React.JSX.Element => {
+  const sessions = useTerminalStore((s) => s.sessions)
+  return (
+    <Field title="Terminal" hint="Vazio usa o terminal ativo. Um nome novo cria outro terminal.">
+      <input
+        className={clsx(input, 'w-full')}
+        list="ssc-terminal-names"
+        value={value ?? ''}
+        placeholder="Terminal ativo"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <datalist id="ssc-terminal-names">
+        {sessions.map((s) => (
+          <option key={s.key} value={s.name} />
+        ))}
+      </datalist>
+    </Field>
+  )
+}
+
+const TerminalActionForm = ({ action, update }: FormProps<TerminalAction>): React.JSX.Element => (
+  <div className="space-y-4">
+    <Field title="Comando" hint="Cada linha é enviada como um comando separado.">
+      <textarea
+        className={clsx(input, 'h-20 w-full resize-y font-mono')}
+        value={action.command}
+        placeholder="npm install"
+        onChange={(e) => update({ command: e.target.value })}
+        spellCheck={false}
+      />
+    </Field>
+    <TerminalNameField value={action.terminal} onChange={(terminal) => update({ terminal })} />
+    <div className="space-y-2">
+      <Check
+        checked={action.executeImmediately}
+        onChange={(executeImmediately) => update({ executeImmediately })}
+      >
+        Executar automaticamente (pressiona Enter)
+      </Check>
+      <Check
+        checked={action.typingAnimation !== false}
+        onChange={(typingAnimation) => update({ typingAnimation })}
+      >
+        Digitação animada
+      </Check>
+      {action.typingAnimation !== false && (
+        <SpeedSlider
+          value={action.typingSpeedMs ?? 35}
+          onChange={(typingSpeedMs) => update({ typingSpeedMs })}
+        />
+      )}
+    </div>
+    <Placeholders text={action.command} onChange={(command) => update({ command })} />
+  </div>
+)
+
+const WaitActionForm = ({ action, update }: FormProps<WaitAction>): React.JSX.Element => (
+  <div className="grid grid-cols-2 gap-4">
+    <Field
+      title="Esperar aparecer"
+      hint="Texto (sem diferenciar maiúsculas) ou /regex/. Esc pula a espera."
+      className="col-span-2"
+    >
+      <input
+        className={clsx(input, 'w-full font-mono')}
+        value={action.pattern}
+        placeholder="ready in"
+        onChange={(e) => update({ pattern: e.target.value })}
+        spellCheck={false}
+      />
+    </Field>
+    <TerminalNameField value={action.terminal} onChange={(terminal) => update({ terminal })} />
+    <Field title="Tempo máximo (segundos)">
+      <input
+        type="number"
+        min={1}
+        className={clsx(input, 'w-full')}
+        value={action.timeoutSec}
+        onChange={(e) => update({ timeoutSec: Number(e.target.value) || 60 })}
+      />
+    </Field>
+  </div>
+)
+
+const SlideActionForm = ({ action, update }: FormProps<SlideAction>): React.JSX.Element => (
+  <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-4">
+      <Field title="Conteúdo (Markdown)">
+        <textarea
+          className={clsx(input, 'h-48 w-full resize-y font-mono')}
+          value={action.markdown}
+          onChange={(e) => update({ markdown: e.target.value })}
+        />
+      </Field>
+      <Field title="Prévia">
+        <div className="h-48 overflow-hidden rounded border border-ide-border bg-[#111827] text-white">
+          <SlideView
+            slide={{ markdown: action.markdown, image: resolveAssetUrl(action.image) }}
+            fontSize={11}
+          />
+        </div>
+      </Field>
+    </div>
+    <Field title="Imagem (opcional)" hint="Caminho relativo à pasta aberta ou URL.">
+      <input
+        className={clsx(input, 'w-full font-mono')}
+        value={action.image ?? ''}
+        placeholder="imagens/diagrama.png"
+        onChange={(e) => update({ image: e.target.value })}
+        spellCheck={false}
+      />
+    </Field>
+  </div>
+)
+
+const HighlightActionForm = ({ action, update }: FormProps<HighlightAction>): React.JSX.Element => (
+  <div className="space-y-4">
+    <TargetFields target={action} update={update} />
+    <div className="grid grid-cols-2 gap-4">
+      <Field title="Da linha">
+        <input
+          type="number"
+          min={1}
+          className={clsx(input, 'w-full')}
+          value={action.startLine}
+          onChange={(e) => update({ startLine: Number(e.target.value) || 1 })}
+        />
+      </Field>
+      <Field title="Até a linha">
+        <input
+          type="number"
+          min={1}
+          className={clsx(input, 'w-full')}
+          value={action.endLine}
+          onChange={(e) => update({ endLine: Number(e.target.value) || 1 })}
+        />
+      </Field>
+    </div>
+    <Field title="Explicação (opcional)" hint="Aparece num balão junto às linhas destacadas.">
+      <textarea
+        className={clsx(input, 'h-16 w-full resize-y')}
+        value={action.note ?? ''}
+        onChange={(e) => update({ note: e.target.value })}
+      />
+    </Field>
+  </div>
+)
+
+const ChallengeActionForm = ({ action, update }: FormProps<ChallengeAction>): React.JSX.Element => (
+  <div className="grid grid-cols-3 gap-4">
+    <Field title="Enunciado (Markdown)" className="col-span-2">
+      <textarea
+        className={clsx(input, 'h-36 w-full resize-y font-mono')}
+        value={action.markdown}
+        onChange={(e) => update({ markdown: e.target.value })}
+      />
+    </Field>
+    <Field title="Tempo (minutos)" hint="0 = sem cronômetro.">
+      <input
+        type="number"
+        min={0}
+        step={0.5}
+        className={clsx(input, 'w-full')}
+        value={action.durationSec / 60}
+        onChange={(e) => update({ durationSec: Math.round((Number(e.target.value) || 0) * 60) })}
+      />
+    </Field>
+  </div>
+)
+
+const PreviewActionForm = ({ action, update }: FormProps<PreviewAction>): React.JSX.Element => (
+  <Field
+    title="Endereço"
+    hint="URL (ex.: http://localhost:5173) ou arquivo da pasta aberta (ex.: index.html)."
+  >
+    <input
+      className={clsx(input, 'w-full font-mono')}
+      value={action.url}
+      onChange={(e) => update({ url: e.target.value })}
+      spellCheck={false}
+    />
+  </Field>
+)
+
+const ObsSceneActionForm = ({ action, update }: FormProps<ObsSceneAction>): React.JSX.Element => {
+  const scenes = useSettingsStore((s) => s.obs?.scenes ?? [])
+  return (
+    <Field title="Cena do OBS" hint="Troca a cena no OBS. Configure a conexão na aba Apresentação.">
+      <input
+        className={clsx(input, 'w-full')}
+        list="ssc-obs-scenes"
+        value={action.scene}
+        onChange={(e) => update({ scene: e.target.value })}
+      />
+      <datalist id="ssc-obs-scenes">
+        {scenes.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+    </Field>
+  )
+}
+
+const ActionForm = ({
   step,
   action
 }: {
   step: LessonNode
-  action: TerminalAction
+  action: StepAction
 }): React.JSX.Element => {
-  const update = (partial: Partial<TerminalAction>): void =>
-    useLessonStore.getState().updateAction(step.id, partial)
+  const update = (partial: Partial<StepAction>): void =>
+    useLessonStore.getState().updateAction(step.id, action.id, partial)
+  switch (action.kind) {
+    case 'FILE':
+      return <FileActionForm step={step} action={action} update={update} />
+    case 'TERMINAL':
+      return <TerminalActionForm step={step} action={action} update={update} />
+    case 'WAIT':
+      return <WaitActionForm step={step} action={action} update={update} />
+    case 'SLIDE':
+      return <SlideActionForm step={step} action={action} update={update} />
+    case 'HIGHLIGHT':
+      return <HighlightActionForm step={step} action={action} update={update} />
+    case 'CHALLENGE':
+      return <ChallengeActionForm step={step} action={action} update={update} />
+    case 'PREVIEW':
+      return <PreviewActionForm step={step} action={action} update={update} />
+    case 'OBS_SCENE':
+      return <ObsSceneActionForm step={step} action={action} update={update} />
+  }
+}
+
+const ActionCard = ({
+  step,
+  action,
+  index,
+  count
+}: {
+  step: LessonNode
+  action: StepAction
+  index: number
+  count: number
+}): React.JSX.Element => {
+  const [open, setOpen] = useState(true)
+  const rootPath = useFileSystemStore((s) => s.rootPath)
+  const lesson = useLessonStore.getState
+  const button = 'rounded p-1 text-gray-400 hover:bg-ide-hover hover:text-white disabled:opacity-30'
 
   return (
-    <div className="space-y-5">
-      <Field title="Comando" hint="Cada linha é enviada como um comando separado.">
-        <textarea
-          className={clsx(input, 'h-24 w-full resize-y font-mono')}
-          value={action.command}
-          placeholder="npm install"
-          onChange={(e) => update({ command: e.target.value })}
-          spellCheck={false}
-        />
-      </Field>
-      <div className="space-y-2">
-        <Check
-          checked={action.executeImmediately}
-          onChange={(executeImmediately) => update({ executeImmediately })}
+    <div className="rounded border border-ide-border bg-ide-panel">
+      <div
+        className="flex cursor-pointer items-center gap-2 px-3 py-2"
+        onClick={() => setOpen(!open)}
+      >
+        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <span className="w-5 text-right text-[11px] tabular-nums text-ide-muted">{index + 1}</span>
+        <ActionIcon kind={action.kind} />
+        <select
+          className="rounded border border-transparent bg-transparent py-0.5 text-[13px] font-semibold text-white outline-none hover:border-ide-border"
+          value={action.kind}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => lesson().setActionKind(step.id, action.id, e.target.value as ActionKind)}
+          title="Tipo da ação"
         >
-          Executar automaticamente (pressiona Enter)
-        </Check>
-        <Check
-          checked={action.typingAnimation !== false}
-          onChange={(typingAnimation) => update({ typingAnimation })}
-        >
-          Digitação animada
-        </Check>
-        {action.typingAnimation !== false && (
-          <SpeedSlider
-            value={action.typingSpeedMs ?? 35}
-            onChange={(typingSpeedMs) => update({ typingSpeedMs })}
-          />
-        )}
+          {ADDABLE.map((kind) => (
+            <option key={kind} value={kind} className="bg-ide-panel">
+              {ACTION_LABELS[kind]}
+            </option>
+          ))}
+        </select>
+        <span className="flex-1 truncate font-mono text-[11px] text-ide-muted">
+          {describeAction(action, rootPath)}
+        </span>
+        <span className="flex" onClick={(e) => e.stopPropagation()}>
+          <button
+            className={button}
+            disabled={index === 0}
+            onClick={() => lesson().moveAction(step.id, action.id, 'up')}
+            title="Mover para cima"
+          >
+            <ChevronUp size={14} />
+          </button>
+          <button
+            className={button}
+            disabled={index === count - 1}
+            onClick={() => lesson().moveAction(step.id, action.id, 'down')}
+            title="Mover para baixo"
+          >
+            <ChevronDown size={14} />
+          </button>
+          <button
+            className={clsx(button, 'hover:text-red-400')}
+            onClick={() => lesson().removeAction(step.id, action.id)}
+            title="Remover ação"
+          >
+            <X size={14} />
+          </button>
+        </span>
       </div>
-      <Placeholders text={action.command} onChange={(command) => update({ command })} />
+      {open && (
+        <div className="border-t border-ide-border p-4">
+          <ActionForm step={step} action={action} />
+        </div>
+      )}
     </div>
   )
 }
 
-function summary(step: LessonNode, root: string | null): string {
-  const action = step.data!.action
-  if (action.kind === 'TERMINAL') {
-    return action.executeImmediately
-      ? 'Ao executar, o comando é digitado e executado no terminal.'
-      : 'Ao executar, o comando é digitado no terminal sem pressionar Enter.'
-  }
-  const op = OPERATIONS.find((o) => o.value === action.operation)!
-  const target = describeTarget(action, root)
-  const animation = action.config.typingAnimation ? ' com digitação animada' : ''
-  if (action.operation === 'CREATE') return `Ao executar, ${op.hint} em ${target}${animation}.`
-  return `Ao executar, ${op.hint} ${target}${animation}.`
+const AddActionMenu = ({ stepId }: { stepId: string }): React.JSX.Element => {
+  const [open, setOpen] = useState(false)
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-center gap-2 rounded border border-dashed border-ide-border py-2 text-[13px] text-gray-400 hover:border-ide-accent hover:text-white"
+      >
+        <Plus size={14} /> Adicionar ação
+      </button>
+      {open && (
+        <div className="mt-2 grid grid-cols-4 gap-2">
+          {ADDABLE.map((kind) => (
+            <button
+              key={kind}
+              onClick={() => {
+                useLessonStore.getState().addAction(stepId, kind)
+                setOpen(false)
+              }}
+              className="flex items-center gap-2 rounded border border-ide-border bg-ide-panel px-2 py-2 text-left text-[12px] text-gray-300 hover:border-ide-accent hover:text-white"
+            >
+              <ActionIcon kind={kind} /> {ACTION_LABELS[kind]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 const StepConfigEditor = ({ stepId }: { stepId: string }): React.JSX.Element => {
   const step = useLessonStore((s) => findNode(s.tree, stepId))
-  const rootPath = useFileSystemStore((s) => s.rootPath)
   const isRunning = usePlayerStore((s) => s.runningStepId === stepId)
   const busy = usePlayerStore((s) => s.runningStepId !== null)
   const lesson = useLessonStore.getState
@@ -344,12 +706,12 @@ const StepConfigEditor = ({ stepId }: { stepId: string }): React.JSX.Element => 
       </div>
     )
   }
-  const { action } = step.data
+  const { actions } = step.data
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl space-y-6 p-8">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <input
             className="min-w-0 flex-1 border-b border-transparent bg-transparent pb-1 text-2xl font-light text-white outline-none hover:border-ide-border focus:border-ide-accent"
             value={step.title}
@@ -366,6 +728,14 @@ const StepConfigEditor = ({ stepId }: { stepId: string }): React.JSX.Element => 
             Executar
           </button>
           <button
+            onClick={() => usePlayerStore.getState().goTo(step.id)}
+            disabled={busy}
+            className="rounded p-2 text-gray-400 hover:bg-ide-hover hover:text-white disabled:opacity-50"
+            title="Ir até este passo (executa ou desfaz os anteriores)"
+          >
+            <StepForward size={16} />
+          </button>
+          <button
             onClick={() => deleteNode(step)}
             className="rounded p-2 text-gray-400 hover:bg-ide-hover hover:text-red-400"
             title="Excluir passo"
@@ -374,49 +744,54 @@ const StepConfigEditor = ({ stepId }: { stepId: string }): React.JSX.Element => 
           </button>
         </div>
 
-        <div className="flex gap-2">
-          {(
-            [
-              ['FILE', 'Código em arquivo', FileCode],
-              ['TERMINAL', 'Comando no terminal', Terminal]
-            ] as const
-          ).map(([kind, text, Icon]) => (
-            <button
-              key={kind}
-              onClick={() => lesson().setActionKind(step.id, kind)}
-              className={clsx(
-                'flex items-center gap-2 rounded border px-3 py-1.5 text-[13px]',
-                action.kind === kind
-                  ? 'border-ide-accent bg-ide-select/40 text-white'
-                  : 'border-ide-border text-gray-400 hover:bg-ide-hover'
-              )}
-            >
-              <Icon size={15} /> {text}
-            </button>
+        <section className="space-y-3">
+          <h2 className="text-[11px] font-bold uppercase tracking-wider text-ide-muted">
+            Ações ({actions.length}) — executadas em ordem
+          </h2>
+          {actions.map((action, index) => (
+            <ActionCard
+              key={action.id}
+              step={step}
+              action={action}
+              index={index}
+              count={actions.length}
+            />
           ))}
-        </div>
+          <AddActionMenu stepId={step.id} />
+        </section>
 
-        <p className="rounded bg-ide-panel px-3 py-2 text-[13px] text-gray-300">
-          {summary(step, rootPath)}
-        </p>
-
-        {action.kind === 'FILE' ? (
-          <FileActionForm step={step} action={action} />
-        ) : (
-          <TerminalActionForm step={step} action={action} />
+        <section className="grid grid-cols-2 gap-4">
+          <Field
+            title="Legenda (pública)"
+            hint="Aparece para a turma: no palco, no OBS e na página dos alunos. Aceita Markdown."
+          >
+            <textarea
+              className={clsx(input, 'h-28 w-full resize-y')}
+              value={step.data.caption ?? ''}
+              placeholder="O que a turma deve entender neste passo…"
+              onChange={(e) => lesson().updateStepData(step.id, { caption: e.target.value })}
+            />
+          </Field>
+          <Field
+            title="Notas do apresentador (privadas)"
+            hint="Só você vê: na aba Passos e na visão do apresentador."
+          >
+            <textarea
+              className={clsx(input, 'h-28 w-full resize-y')}
+              value={step.data.presenterNotes ?? ''}
+              placeholder="O que explicar antes de executar este passo…"
+              onChange={(e) => lesson().updateStepData(step.id, { presenterNotes: e.target.value })}
+            />
+          </Field>
+        </section>
+        {step.data.caption?.trim() && (
+          <div className="rounded border border-ide-border bg-ide-panel px-4 py-3 text-[14px] text-gray-200">
+            <div className="mb-1 text-[11px] uppercase tracking-wider text-ide-muted">
+              Prévia da legenda
+            </div>
+            <Markdown source={step.data.caption} />
+          </div>
         )}
-
-        <Field
-          title="Notas do apresentador"
-          hint="Aparecem na aba Passos quando este é o próximo passo."
-        >
-          <textarea
-            className={clsx(input, 'h-24 w-full resize-y')}
-            value={step.data.presenterNotes ?? ''}
-            placeholder="O que explicar antes de executar este passo…"
-            onChange={(e) => lesson().updateStepData(step.id, { presenterNotes: e.target.value })}
-          />
-        </Field>
       </div>
     </div>
   )

@@ -12,19 +12,33 @@ import { useFileSystemStore } from '../store/useFileSystemStore'
 import { usePlayerStore } from '../store/usePlayerStore'
 import { chooseWorkspace, confirmUnsavedChanges } from '../lib/workspace'
 import { flushLessonSave } from '../store/useLessonStore'
+import { useStageStore } from '../store/useStageStore'
+import { useSettingsStore } from '../store/useSettingsStore'
+import { useAnnotatorStore } from '../store/useAnnotatorStore'
+import Annotator from './UI/Annotator'
 
 function useGlobalShortcuts(): void {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       const ide = useIDEStore.getState()
       const player = usePlayerStore.getState()
+      const annotator = useAnnotatorStore.getState()
+      const stage = useStageStore.getState()
+      const clicker = useSettingsStore.getState().settings.keys.clicker
       const ctrl = e.ctrlKey || e.metaKey
       const key = e.key.toLowerCase()
       let handled = true
 
       if (e.key === 'F8' && !e.shiftKey) player.runNext()
       else if (e.key === 'F8' && e.shiftKey) player.undoLast()
+      // Presentation clickers send PageDown / PageUp.
+      else if (clicker && e.key === 'PageDown' && !ctrl) player.runNext()
+      else if (clicker && e.key === 'PageUp' && !ctrl) player.undoLast()
+      else if (e.key === 'F6') annotator.toggle('pen')
+      else if (e.key === 'F7') annotator.toggle('spotlight')
       else if (e.key === 'Escape' && player.runningStepId) player.skip()
+      else if (e.key === 'Escape' && annotator.mode !== 'off') annotator.close()
+      else if (e.key === 'Escape' && stage.highlight) stage.setHighlight(null)
       else if (ctrl && key === 's') {
         const path = ide.activeFilePath()
         if (path) {
@@ -114,6 +128,7 @@ const Layout = (): React.JSX.Element => {
       <StatusBar />
       <Toasts />
       <PromptDialog />
+      <Annotator />
     </div>
   )
 }

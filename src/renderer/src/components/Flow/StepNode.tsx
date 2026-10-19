@@ -1,12 +1,15 @@
 import { Handle, Node, NodeProps, Position } from '@xyflow/react'
 import clsx from 'clsx'
-import { CheckCircle2, FileCode, Loader2, Terminal } from 'lucide-react'
+import { CheckCircle2, Loader2 } from 'lucide-react'
+import { ActionKind } from '../../types/schema'
+import { ActionIcon } from '../UI/ActionIcon'
 
 export type StepNodeData = {
   title: string
   subtitle: string
   number: number
-  kind: 'FILE' | 'TERMINAL'
+  kind: ActionKind
+  actions: number
   executed: boolean
   next: boolean
   running: boolean
@@ -29,12 +32,11 @@ export const StepNode = ({ data, selected }: NodeProps<StepFlowNode>): React.JSX
       )}
     >
       <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-        {data.kind === 'TERMINAL' ? (
-          <Terminal size={12} className="text-purple-400" />
-        ) : (
-          <FileCode size={12} className="text-sky-400" />
-        )}
+        <ActionIcon kind={data.kind} size={12} />
         <span>Passo {data.number}</span>
+        {data.actions > 1 && (
+          <span className="normal-case text-ide-muted">· {data.actions} ações</span>
+        )}
         <span className="flex-1" />
         {data.running ? (
           <Loader2 size={12} className="animate-spin text-sky-400" />

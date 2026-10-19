@@ -1,16 +1,28 @@
 import { useEffect } from 'react'
 import Layout from './components/Layout'
 import { restoreLastWorkspace } from './lib/workspace'
+import { initSettings, useSettingsStore } from './store/useSettingsStore'
+import { startPublisher, startRemoteControl } from './lib/publisher'
 
-let restored = false
+let started = false
 
 function App(): React.JSX.Element {
+  const projector = useSettingsStore((s) => s.settings.projector)
+
   useEffect(() => {
     // Guard against StrictMode running the effect twice in development.
-    if (restored) return
-    restored = true
+    if (started) return
+    started = true
+    initSettings()
+    startPublisher()
+    startRemoteControl()
     restoreLastWorkspace()
   }, [])
+
+  // Projector mode: everything bigger for the back of the room.
+  useEffect(() => {
+    window.electron.webFrame.setZoomFactor(projector ? 1.2 : 1)
+  }, [projector])
 
   return <Layout />
 }

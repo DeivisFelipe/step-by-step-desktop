@@ -1,37 +1,73 @@
 # 📚 Step-by-Step Code — Desktop
 
-Aplicativo desktop (Electron + React + TypeScript) para **preparar aulas de programação com antecedência e apresentá-las passo a passo**. Cada passo digita código em um arquivo ou um comando no terminal, com animação, na frente da turma.
+Aplicativo desktop (Electron + React + TypeScript) para **preparar aulas de programação com antecedência e apresentá-las passo a passo**: cada passo digita código, roda comandos, mostra slides, destaca linhas ou propõe desafios, na frente da turma, no projetor ou numa transmissão pelo OBS.
 
 É a versão desktop da extensão [Step-by-Step-Code para VS Code](https://github.com/DeivisFelipe/step-by-step-code).
 
 ## ✨ Funcionalidades
 
-- **Explorador de arquivos**: criar, renomear, mover (arrastar e soltar) e excluir arquivos e pastas.
-- **Editor de código** (Monaco, o mesmo do VS Code), com abas, indicador de alterações não salvas e `Ctrl+S`.
-- **Terminal integrado** (PowerShell, cmd, Git Bash, WSL, bash/zsh) aberto na pasta do projeto.
-- **Passos da aula** organizados em fluxos, com dois tipos de ação:
-  - **Código em arquivo**: criar, acrescentar ao final, inserir no início, substituir um texto, inserir no cursor ou sobrescrever, com digitação animada e velocidade ajustável.
-  - **Comando no terminal**: digita o comando e (opcionalmente) pressiona Enter.
-- **Modo apresentação**: _Avançar_ (`F8`), _Voltar_ (`Shift+F8`, desfaz as alterações do passo nos arquivos) e _Resetar_.
-- **Variáveis** `[[Nome:valor]]` dentro do conteúdo, editáveis antes de executar o passo.
-- **Notas do apresentador**, mostradas quando o passo é o próximo.
-- **Diagrama do fluxo**: visualize os passos e ligue um passo a outro para mudar a ordem.
+### Preparar a aula
 
-A aula é salva automaticamente em `.stepbystep/lesson.json`, dentro da pasta aberta, e pode ser versionada junto com o projeto.
+- **Passos organizados em fluxos**. Cada passo é uma **sequência de ações** executadas em ordem:
+  - **Código em arquivo**: criar, acrescentar ao final, inserir no início, inserir depois de um texto, substituir um texto, inserir no cursor, sobrescrever ou excluir. Animação de **digitação** (com velocidade ajustável e pausas naturais), de **transformação suave** (magic move) ou nenhuma.
+  - **Comando no terminal**: digita (e opcionalmente executa) o comando, em um terminal com nome. Um nome novo cria outro terminal, útil para deixar um servidor rodando.
+  - **Esperar o terminal**: segura a aula até aparecer um texto (ex.: `ready in`) ou `/regex/`.
+  - **Slide**: Markdown e imagem.
+  - **Destacar linhas**: escurece o resto do arquivo e mostra uma explicação num balão.
+  - **Desafio**: enunciado com cronômetro.
+  - **Preview**: mostra uma página (URL ou arquivo do projeto).
+  - **Cena do OBS**: troca a cena da transmissão.
+- **Legenda** (pública, aparece para a turma) e **notas do apresentador** (privadas) em cada passo.
+- **Variáveis** `[[Nome:valor]]` no conteúdo, ajustáveis antes de executar.
+- **Diagrama do fluxo**: ligue um passo a outro para mudar a ordem.
+- **Ensaio da aula**: roda tudo sem animação numa cópia e aponta o que falharia (arquivos que não existem, textos não encontrados, linhas fora do arquivo, imagens faltando). Também pode executar os comandos numa pasta temporária.
+- **Criar passos a partir do git**: cada commit escolhido vira um passo.
+- **Aula em Markdown**: importe e exporte a aula num formato de texto fácil de escrever e revisar ([formato](docs/formato-aula.md)).
+
+### Durante a aula
+
+- **Avançar** (`F8` ou `PageDown`), **Voltar** (`Shift+F8` ou `PageUp`), que desfaz as alterações do passo nos arquivos, **Ir até este passo** e **Resetar**, que devolve o projeto exatamente ao estado de antes do primeiro passo.
+- Funciona com **passador de slides** (PageDown/PageUp).
+- O progresso fica salvo: fechar e abrir o app não perde em que passo a aula estava.
+- **Modo projetor** (tudo maior), **caneta** (`F6`) e **holofote** (`F7`).
+- **Visão do apresentador** numa janela separada ou **no celular** (QR code): notas, próximo passo, cronômetros e botões de avançar/voltar.
+- **Página para os alunos** na rede local (QR code): acompanham o código ao vivo e podem copiá-lo.
+
+### Transmissão e gravação (OBS)
+
+- Servidor local com páginas para usar como **fonte de navegador** no OBS:
+
+  | Página       | Conteúdo                                                       |
+  | ------------ | -------------------------------------------------------------- |
+  | `/palco`     | Troca sozinho entre código, terminal, slide, desafio e preview |
+  | `/codigo`    | Só a janela de código                                          |
+  | `/terminal`  | Só o terminal                                                  |
+  | `/slide`     | Slides e desafios                                              |
+  | `/legenda`   | Legenda do passo, fundo transparente                           |
+  | `/progresso` | Barra com o passo atual, fundo transparente                    |
+
+  As URLs completas ficam na aba **Apresentação** do app (padrão `http://127.0.0.1:4545`).
+
+- Código no estilo **Carbon/ray.so**: janela macOS/Windows, temas do Shiki, fundo em gradiente ou transparente, proporção 16:9, 4:3, 1:1 ou **9:16 (vertical)**, fonte, sombra, cantos e legenda configuráveis. Use `?estilo=Nome` na URL para ter fontes com estilos diferentes.
+- Integração com o **obs-websocket** (OBS 28+): troca de cena conforme o tipo de passo e **capítulos na gravação** (OBS 30.2+). O app também gera a lista de **capítulos para o YouTube**.
+- **Apostila para os alunos** em PDF ou Markdown, e **repositório git com um commit por passo**.
+
+A aula fica salva em `.stepbystep/lesson.json` dentro da pasta do projeto, e pode ser versionada junto com ele. O progresso (`sessao.json`) e o ponto de partida (`inicio/`) ficam na mesma pasta e já são ignorados pelo git.
 
 ## ⌨️ Atalhos
 
-| Atalho      | Ação                            |
-| ----------- | ------------------------------- |
-| `F8`        | Executar o próximo passo        |
-| `Shift+F8`  | Voltar o último passo           |
-| `Esc`       | Pular a animação de digitação   |
-| `Ctrl+S`    | Salvar arquivo                  |
-| `Ctrl+O`    | Abrir pasta                     |
-| `Ctrl+W`    | Fechar aba                      |
-| `Ctrl+B`    | Mostrar/ocultar a barra lateral |
-| `Ctrl+J`    | Mostrar/ocultar o terminal      |
-| `Ctrl+roda` | Zoom no editor                  |
+| Atalho                | Ação                                           |
+| --------------------- | ---------------------------------------------- |
+| `F8` / `PageDown`     | Executar o próximo passo                       |
+| `Shift+F8` / `PageUp` | Voltar o último passo                          |
+| `Esc`                 | Pular a animação ou a espera; tirar o destaque |
+| `F6` / `F7`           | Caneta / holofote                              |
+| `Ctrl+S`              | Salvar arquivo                                 |
+| `Ctrl+O`              | Abrir pasta                                    |
+| `Ctrl+W`              | Fechar aba                                     |
+| `Ctrl+B`              | Mostrar/ocultar a barra lateral                |
+| `Ctrl+J`              | Mostrar/ocultar o terminal                     |
+| `Ctrl+roda`           | Zoom no editor                                 |
 
 ## 🛠️ Desenvolvimento
 
@@ -65,13 +101,15 @@ Também há `build:mac` e `build:linux`.
 
 ```
 src/
-  main/        processo principal (arquivos, diálogos, terminal com node-pty)
-  preload/     ponte segura entre o processo principal e a interface
-  renderer/src/
-    components/  interface (explorador, editor, passos, diagrama, terminal)
-    engine/      execução dos passos (digitação animada e desfazer)
-    store/       estado (zustand): arquivos, abas, aula, apresentação
-    lib/         utilitários (caminhos, árvore da aula, Monaco)
+  main/             processo principal: arquivos, terminal (node-pty), servidor de
+                    apresentação, cliente do OBS, ensaio, git e PDF
+  preload/          ponte segura entre o processo principal e a interface
+  shared/           tipos usados pelos dois lados (estilos, palco, IPC)
+  renderer/
+    src/            a IDE: componentes, motor de execução, estados (zustand)
+    overlay/        páginas de apresentação (OBS, alunos, visão do apresentador)
+    common/         componentes usados pelos dois (Markdown, slide, desafio)
+docs/               formato da aula em Markdown
 ```
 
 ## 📜 Licença

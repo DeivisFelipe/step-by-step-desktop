@@ -1,10 +1,11 @@
 import clsx from 'clsx'
-import { Files, ListChecks } from 'lucide-react'
+import { Files, ListChecks, Presentation } from 'lucide-react'
 import { useIDEStore } from '../../store/useIDEStore'
 
 const ITEMS = [
   { id: 'EXPLORER', icon: Files, title: 'Explorador (Ctrl+B)' },
-  { id: 'STEPS', icon: ListChecks, title: 'Passos da aula' }
+  { id: 'STEPS', icon: ListChecks, title: 'Passos da aula' },
+  { id: 'PRESENT', icon: Presentation, title: 'Apresentação, OBS e exportação' }
 ] as const
 
 const ActivityBar = (): React.JSX.Element => {

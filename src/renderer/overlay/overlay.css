@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: transparent;
+}
+
+body {
+  font-family:
+    Inter,
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Overlay pages that fill the OBS source are never scrollable. */
+body.no-scroll {
+  overflow: hidden;
+}
+
+.ssc-code pre {
+  margin: 0;
+  background: transparent !important;
+}
+
+.ssc-code .line-number {
+  display: inline-block;
+  width: 2.5em;
+  margin-right: 1.2em;
+  text-align: right;
+  opacity: 0.35;
+  user-select: none;
+}
+
+.ssc-code .line.dim {
+  opacity: 0.28;
+  transition: opacity 300ms;
+}
+
+.ssc-code .line.focus {
+  background: rgba(250, 204, 21, 0.1);
+  box-shadow: inset 4px 0 0 #facc15;
+}
+
+.ssc-note {
+  display: inline-block;
+  background: #facc15;
+  color: #1f2937;
+  border-radius: 10px;
+  padding: 0.35em 0.8em;
+  margin: 0.4em 0 0.4em 3.7em;
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+  white-space: pre-wrap;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.fade-in {
+  animation: fade-in 300ms ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.caption-in {
+  animation: caption-in 400ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes caption-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cursor-blink::after {
+  content: '';
+  display: inline-block;
+  width: 0.55em;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}

@@ -14,6 +14,15 @@ export default defineConfig({
     plugins: [react()],
     optimizeDeps: {
       exclude: ['monaco-editor']
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          // The IDE window, and the presentation pages served to OBS / students.
+          index: resolve('src/renderer/index.html'),
+          overlay: resolve('src/renderer/overlay.html')
+        }
+      }
     }
   }
 })
