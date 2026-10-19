@@ -1,6 +1,6 @@
 {
   "name": "step-by-step-code",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Prepare aulas de programação passo a passo e apresente-as com animação de digitação.",
   "main": "./out/main/index.js",
   "author": "Deivis Felipe",
