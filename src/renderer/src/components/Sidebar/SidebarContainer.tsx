@@ -1,16 +1,15 @@
-import { useIDEStore } from '../../store/useIDEStore';
-import FileExplorer from './FileExplorer';
-import LessonSteps from './LessonSteps';
+import { useIDEStore } from '../../store/useIDEStore'
+import FileExplorer from './FileExplorer'
+import LessonSteps from './LessonSteps'
 
-const SidebarContainer = () => {
-  const { activeActivity } = useIDEStore();
+const SidebarContainer = (): React.JSX.Element => {
+  const activeActivity = useIDEStore((s) => s.activeActivity)
 
   return (
-    <div className="h-full w-60 border-r border-[#1e1e1e]">
-       {activeActivity === 'EXPLORER' && <FileExplorer />}
-       {activeActivity === 'STEPS' && <LessonSteps />}
+    <div className="h-full w-full bg-ide-panel">
+      {activeActivity === 'EXPLORER' ? <FileExplorer /> : <LessonSteps />}
     </div>
-  );
-};
+  )
+}
 
-export default SidebarContainer;
+export default SidebarContainer

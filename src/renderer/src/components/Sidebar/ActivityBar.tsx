@@ -1,36 +1,38 @@
-import { useIDEStore } from '../../store/useIDEStore';
-import { Files, List } from 'lucide-react';
-import clsx from 'clsx';
+import clsx from 'clsx'
+import { Files, ListChecks } from 'lucide-react'
+import { useIDEStore } from '../../store/useIDEStore'
 
-const ActivityBar = () => {
-  const { activeActivity, setActiveActivity } = useIDEStore();
+const ITEMS = [
+  { id: 'EXPLORER', icon: Files, title: 'Explorador (Ctrl+B)' },
+  { id: 'STEPS', icon: ListChecks, title: 'Passos da aula' }
+] as const
 
-  const items = [
-    { id: 'EXPLORER', icon: Files, title: 'Explorer' },
-    { id: 'STEPS', icon: List, title: 'Lesson Steps' },
-  ] as const;
+const ActivityBar = (): React.JSX.Element => {
+  const activeActivity = useIDEStore((s) => s.activeActivity)
+  const sidebarVisible = useIDEStore((s) => s.sidebarVisible)
+  const setActiveActivity = useIDEStore((s) => s.setActiveActivity)
 
   return (
-    <div className="w-12 bg-[#333333] flex flex-col items-center py-2 border-r border-[#252526]">
-      {items.map(item => (
-        <div
-          key={item.id}
-          className={clsx(
-            "p-3 mb-2 cursor-pointer transition-colors relative",
-            activeActivity === item.id ? "text-white" : "text-[#858585] hover:text-white"
-          )}
-          onClick={() => setActiveActivity(item.id)}
-          title={item.title}
-        >
-          <item.icon size={24} strokeWidth={1.5} />
-          {activeActivity === item.id && (
-             <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500" />
-          )}
-        </div>
-      ))}
-
+    <div className="flex w-12 flex-none flex-col items-center bg-[#333333] py-1">
+      {ITEMS.map((item) => {
+        const active = sidebarVisible && activeActivity === item.id
+        return (
+          <button
+            key={item.id}
+            className={clsx(
+              'relative flex h-12 w-12 items-center justify-center transition-colors',
+              active ? 'text-white' : 'text-ide-muted hover:text-white'
+            )}
+            onClick={() => setActiveActivity(item.id)}
+            title={item.title}
+          >
+            <item.icon size={24} strokeWidth={1.5} />
+            {active && <div className="absolute bottom-0 left-0 top-0 w-0.5 bg-white" />}
+          </button>
+        )
+      })}
     </div>
-  );
-};
+  )
+}
 
-export default ActivityBar;
+export default ActivityBar

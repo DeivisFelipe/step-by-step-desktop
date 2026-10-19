@@ -1,22 +1,51 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
+import { app, shell, BrowserWindow, ipcMain, dialog, MessageBoxOptions } from 'electron'
+import { join, dirname } from 'path'
+import { spawn } from 'child_process'
+import * as fs from 'fs'
+import os from 'os'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/logo.png?asset'
-import * as fs from 'fs'
-import { spawn } from 'child_process';
-// import * as pty from 'node-pty' // Loaded dynamically
-import os from 'os'
+import type { IPty } from 'node-pty'
 
-// Terminal map
-const terminals: Record<string, any> = {};
+// node-pty is a native module; if it fails to load we fall back to a plain child process.
+let pty: typeof import('node-pty') | null = null
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  pty = require('node-pty')
+} catch {
+  console.warn('node-pty indisponível, usando child_process como fallback')
+}
+
+interface TerminalProcess {
+  write: (data: string) => void
+  resize: (cols: number, rows: number) => void
+  kill: () => void
+}
+
+const terminals = new Map<number, TerminalProcess>()
+let nextTerminalId = 1
+
+function killAllTerminals(): void {
+  for (const term of terminals.values()) {
+    try {
+      term.kill()
+    } catch {
+      // already dead
+    }
+  }
+  terminals.clear()
+}
 
 function createWindow(): void {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1400,
+    height: 900,
+    minWidth: 900,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    backgroundColor: '#1e1e1e',
+    title: 'Step-by-Step Code',
     icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -25,16 +54,17 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
+    mainWindow.maximize()
     mainWindow.show()
   })
+
+  mainWindow.on('closed', killAllTerminals)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -43,15 +73,15 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.stepbystep.code')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC Handlers
-  setupIpcHandlers();
+  setupFileSystemHandlers()
+  setupDialogHandlers()
+  setupTerminalHandlers()
 
   createWindow()
 
@@ -60,193 +90,207 @@ app.whenReady().then(() => {
   })
 })
 
+app.on('before-quit', killAllTerminals)
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
-function setupIpcHandlers() {
-  // --- File System ---
-  
+function setupFileSystemHandlers(): void {
   ipcMain.handle('file:open-folder', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
-      properties: ['openDirectory']
-    });
-    if (canceled) return null;
-    return filePaths[0];
-  });
+      title: 'Abrir pasta',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (canceled || filePaths.length === 0) return null
+    return filePaths[0]
+  })
 
   ipcMain.handle('file:read-dir', async (_, path: string) => {
-     try {
-       const dirents = await fs.promises.readdir(path, { withFileTypes: true });
-       return dirents.map(d => ({
-         name: d.name,
-         isDirectory: d.isDirectory(),
-         path: join(path, d.name)
-       }));
-     } catch (e) {
-       console.error(e);
-       return [];
-     }
-  });
+    try {
+      const dirents = await fs.promises.readdir(path, { withFileTypes: true })
+      return dirents.map((d) => ({
+        name: d.name,
+        isDirectory: d.isDirectory(),
+        path: join(path, d.name)
+      }))
+    } catch (e) {
+      console.error(`[file:read-dir] ${path}:`, e)
+      return []
+    }
+  })
+
+  ipcMain.handle('file:exists', async (_, path: string) => {
+    try {
+      await fs.promises.access(path)
+      return true
+    } catch {
+      return false
+    }
+  })
 
   ipcMain.handle('file:read', async (_, path: string) => {
     try {
-      if (!fs.existsSync(path)) {
-         console.warn(`[file:read] File not found: ${path}`);
-         return null; 
-      }
-      return await fs.promises.readFile(path, 'utf-8');
-    } catch (e) {
-      console.error(`[file:read] Error reading ${path}:`, e);
-      return null;
+      return await fs.promises.readFile(path, 'utf-8')
+    } catch {
+      return null
     }
-  });
+  })
 
   ipcMain.handle('file:write', async (_, path: string, content: string) => {
-     try {
-       // Ensure dir exists?
-       // fs.promises.writeFile handles it? No, dir must exist.
-       const dir = path.substring(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')));
-       if (dir && !fs.existsSync(dir)) {
-          await fs.promises.mkdir(dir, { recursive: true });
-       }
-       await fs.promises.writeFile(path, content, 'utf-8');
-     } catch (e) {
-       console.error(e);
-       throw e;
-     }
-  });
+    await fs.promises.mkdir(dirname(path), { recursive: true })
+    await fs.promises.writeFile(path, content, 'utf-8')
+  })
 
   ipcMain.handle('file:create-dir', async (_, path: string) => {
-    await fs.promises.mkdir(path, { recursive: true });
-  });
+    await fs.promises.mkdir(path, { recursive: true })
+  })
 
   ipcMain.handle('file:delete', async (_, path: string) => {
-    await fs.promises.rm(path, { recursive: true, force: true });
-  });
+    await fs.promises.rm(path, { recursive: true, force: true })
+  })
 
   ipcMain.handle('file:rename', async (_, oldPath: string, newPath: string) => {
-    await fs.promises.rename(oldPath, newPath);
-  });
+    if (oldPath === newPath) return
+    if (fs.existsSync(newPath)) {
+      throw new Error(`Já existe um item com esse nome: ${newPath}`)
+    }
+    await fs.promises.mkdir(dirname(newPath), { recursive: true })
+    await fs.promises.rename(oldPath, newPath)
+  })
 
-  // --- Terminal ---
-  
-// (Removed nested import)
-
-let pty: any;
-try {
-  pty = require('node-pty');
-} catch (e) {
-  console.warn('node-pty not found, falling back to child_process.spawn');
+  ipcMain.handle('file:reveal', (_, path: string) => {
+    shell.showItemInFolder(path)
+  })
 }
 
-// ... (other handlers)
+function setupDialogHandlers(): void {
+  ipcMain.handle('dialog:message', async (event, options: MessageBoxOptions) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const result = win
+      ? await dialog.showMessageBox(win, options)
+      : await dialog.showMessageBox(options)
+    return result.response
+  })
+}
 
-  ipcMain.handle('terminal:get-shells', async () => {
-     const shells: string[] = [];
-     if (os.platform() === 'win32') {
-        const potentialShells = [
-           'powershell.exe',
-           'cmd.exe',
-           'C:\\Program Files\\Git\\bin\\bash.exe',
-           'C:\\Windows\\System32\\wsl.exe'
-        ];
-        
-        for (const s of potentialShells) {
-           // Simple check if it exists or is in path (for just filename)
-           if (s.includes('\\')) {
-              if (fs.existsSync(s)) shells.push(s);
-           } else {
-              shells.push(s); // Assume basics exist
-           }
+function listShells(): string[] {
+  if (os.platform() === 'win32') {
+    const systemRoot = process.env.SystemRoot || 'C:\\Windows'
+    const programFiles = process.env.ProgramFiles || 'C:\\Program Files'
+    const candidates = [
+      join(programFiles, 'PowerShell', '7', 'pwsh.exe'),
+      join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+      join(systemRoot, 'System32', 'cmd.exe'),
+      join(programFiles, 'Git', 'bin', 'bash.exe'),
+      join(systemRoot, 'System32', 'wsl.exe')
+    ]
+    return candidates.filter((s) => fs.existsSync(s))
+  }
+  const candidates = [process.env.SHELL, '/bin/zsh', '/bin/bash', '/bin/sh'].filter(
+    (s): s is string => !!s
+  )
+  return [...new Set(candidates)].filter((s) => fs.existsSync(s))
+}
+
+function spawnTerminal(
+  shellPath: string,
+  cwd: string,
+  onData: (data: string) => void,
+  onExit: (code: number | null) => void
+): TerminalProcess {
+  const env = { ...process.env } as Record<string, string>
+
+  if (pty) {
+    const proc: IPty = pty.spawn(shellPath, [], {
+      name: 'xterm-256color',
+      cols: 80,
+      rows: 24,
+      cwd,
+      env
+    })
+    proc.onData(onData)
+    proc.onExit(({ exitCode }) => onExit(exitCode))
+    return {
+      write: (data) => proc.write(data),
+      resize: (cols, rows) => proc.resize(Math.max(cols, 1), Math.max(rows, 1)),
+      kill: () => proc.kill()
+    }
+  }
+
+  const cp = spawn(shellPath, [], { cwd, env })
+  cp.stdout?.on('data', (data: Buffer) => onData(data.toString()))
+  cp.stderr?.on('data', (data: Buffer) => onData(data.toString()))
+  cp.on('exit', (code) => onExit(code))
+  cp.on('error', (err) => onData(`\r\n${err.message}\r\n`))
+  return {
+    // Without a pty there is no line discipline: echo the input and translate Enter.
+    write: (data) => {
+      onData(data.replace(/\r/g, '\r\n'))
+      cp.stdin?.write(data.replace(/\r/g, '\n'))
+    },
+    resize: () => {},
+    kill: () => cp.kill()
+  }
+}
+
+function setupTerminalHandlers(): void {
+  ipcMain.handle('terminal:get-shells', () => listShells())
+
+  ipcMain.handle('terminal:create', (event, options?: { shell?: string; cwd?: string }) => {
+    const shellPath =
+      options?.shell ||
+      listShells()[0] ||
+      (os.platform() === 'win32' ? 'powershell.exe' : '/bin/sh')
+    const cwd = options?.cwd && fs.existsSync(options.cwd) ? options.cwd : os.homedir()
+    const id = nextTerminalId++
+    const sender = event.sender
+
+    const send = (channel: string, ...args: unknown[]): void => {
+      if (!sender.isDestroyed()) sender.send(channel, ...args)
+    }
+
+    try {
+      const term = spawnTerminal(
+        shellPath,
+        cwd,
+        (data) => send('terminal:data', id, data),
+        (code) => {
+          terminals.delete(id)
+          send('terminal:exit', id, code)
         }
-     } else {
-        shells.push('/bin/bash', '/bin/zsh');
-     }
-     return shells;
-  });
-
-  ipcMain.on('terminal:create', (event, options?: { shell?: string; cwd?: string }) => {
-    let shell = options?.shell;
-    
-    if (!shell) {
-        shell = os.platform() === 'win32' ? 'powershell.exe' : 'bash';
+      )
+      terminals.set(id, term)
+    } catch (e) {
+      setTimeout(() => {
+        send('terminal:data', id, `\r\nFalha ao iniciar ${shellPath}: ${(e as Error).message}\r\n`)
+      }, 50)
     }
-    
-    const cwd = options?.cwd || process.env.HOME || process.cwd();
-    
-    // Cleanup existing default
-    if (terminals['default']) {
-       try {
-         // @ts-ignore
-         const oldInfo = terminals['default'];
-         if (typeof oldInfo.kill === 'function') oldInfo.kill();
-         delete terminals['default'];
-       } catch (e) {
-          console.error("Failed to kill terminal", e);
-       }
+    return id
+  })
+
+  ipcMain.on('terminal:input', (_, id: number, data: string) => {
+    terminals.get(id)?.write(data)
+  })
+
+  ipcMain.on('terminal:resize', (_, id: number, cols: number, rows: number) => {
+    try {
+      terminals.get(id)?.resize(cols, rows)
+    } catch {
+      // the process may have exited between the resize and this call
     }
-    
-    if (pty) {
-        const ptyProcess = pty.spawn(shell, [], {
-          name: 'xterm-color',
-          cols: 80,
-          rows: 30,
-          cwd: cwd,
-          env: process.env
-        });
+  })
 
-        terminals['default'] = ptyProcess;
-
-        ptyProcess.onData((data: string) => {
-           event.sender.send('terminal:data', data);
-        });
-        
-        ptyProcess.onExit(({ exitCode, signal }) => {
-            event.sender.send('terminal:data', `\r\n[Process exited with code ${exitCode}]`);
-        });
-    } else {
-        // Fallback using simple spawn
-        const cp = spawn(shell, [], {
-            cwd: process.env.HOME || process.cwd(),
-            env: process.env,
-            shell: true
-        });
-        
-        terminals['default'] = cp as any;
-        
-        cp.stdout?.on('data', (data) => {
-             event.sender.send('terminal:data', data.toString());
-        });
-        cp.stderr?.on('data', (data) => {
-             event.sender.send('terminal:data', data.toString());
-        });
-        
-        cp.on('exit', (code) => {
-            event.sender.send('terminal:data', `\r\n[Process exited with code ${code}]`);
-            delete terminals['default'];
-        });
+  ipcMain.on('terminal:kill', (_, id: number) => {
+    const term = terminals.get(id)
+    if (!term) return
+    terminals.delete(id)
+    try {
+      term.kill()
+    } catch {
+      // already dead
     }
-  });
-
-  ipcMain.on('terminal:input', (_, data) => {
-     const proc = terminals['default'];
-     if (proc) {
-        // pty write or stdin write
-        if (typeof proc.write === 'function') {
-            proc.write(data);
-        } else {
-            (proc as any).stdin?.write(data);
-        }
-     }
-  });
-
-  ipcMain.on('terminal:resize', (_, { cols, rows }) => {
-    const proc = terminals['default'];
-    if (proc && typeof proc.resize === 'function') {
-       proc.resize(cols, rows);
-    }
-  });
+  })
 }

@@ -1,64 +1,104 @@
-import { useIDEStore } from '../../store/useIDEStore';
-import CodeEditor from './CodeEditor';
-import { X } from 'lucide-react';
-import clsx from 'clsx';
-import { FileIcon } from '../UI/FileIcon';
-import FlowEditor from '../Flow/FlowEditor';
-import logo from '../../assets/logo.png';
+import clsx from 'clsx'
+import { FileCode, Terminal, Workflow, X } from 'lucide-react'
+import { Tab, useIDEStore } from '../../store/useIDEStore'
+import { useFileSystemStore } from '../../store/useFileSystemStore'
+import { useLessonStore } from '../../store/useLessonStore'
+import { findNode } from '../../lib/tree'
+import { basename, relativeTo } from '../../lib/paths'
+import { FileIcon } from '../UI/FileIcon'
+import CodeEditor from './CodeEditor'
+import StepConfigEditor from './StepConfigEditor'
+import FlowEditor from '../Flow/FlowEditor'
+import Welcome from './Welcome'
 
-const MainEditor = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab } = useIDEStore();
+const TabButton = ({ tab, active }: { tab: Tab; active: boolean }): React.JSX.Element => {
+  const node = useLessonStore((s) => (tab.type === 'FILE' ? null : findNode(s.tree, tab.id)))
+  const rootPath = useFileSystemStore((s) => s.rootPath)
+  const isDirty = useFileSystemStore((s) => {
+    const f = tab.type === 'FILE' ? s.files[tab.id] : undefined
+    return !!f && f.content !== f.savedContent
+  })
 
-  const activeTab = tabs.find(t => t.id === activeTabId);
+  const title = tab.type === 'FILE' ? basename(tab.id) : (node?.title ?? 'Removido')
+  const tooltip = tab.type === 'FILE' ? relativeTo(rootPath, tab.id) : title
+  const icon =
+    tab.type === 'FILE' ? (
+      <FileIcon name={title} />
+    ) : tab.type === 'FLOW' ? (
+      <Workflow size={16} className="text-[#dcb67a]" />
+    ) : node?.data?.action.kind === 'TERMINAL' ? (
+      <Terminal size={16} className="text-purple-400" />
+    ) : (
+      <FileCode size={16} className="text-sky-400" />
+    )
+
+  const close = (e: React.MouseEvent): void => {
+    e.stopPropagation()
+    useIDEStore.getState().closeTab(tab.id)
+  }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Tab Bar */}
-       <div className="flex-none h-9 bg-[#252526] border-b border-[#252526] flex overflow-y-hidden overflow-x-overlay custom-scrollbar">
-         {tabs.map(tab => (
-            <div 
-              key={tab.id}
-              className={clsx(
-                "flex-shrink-0 flex items-center px-3 text-xs cursor-pointer border-r border-[#1e1e1e] min-w-[120px] max-w-[200px] hover:bg-[#2d2d2d] h-full",
-                activeTabId === tab.id ? "bg-[#1e1e1e] text-white" : "text-[#969696] bg-[#2d2d2d]"
-              )}
-             onClick={() => setActiveTab(tab.id)}
-           >
-             <span className="mr-2 flex-shrink-0">
-                <FileIcon name={tab.title} className="opacity-80" />
-             </span>
-             <span className="truncate flex-1">{tab.title}</span>
-             <button 
-                onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
-                className="ml-2 p-0.5 rounded hover:bg-[#444]"
-             >
-               <X size={12} />
-             </button>
-           </div>
-        ))}
-      </div>
+    <div
+      className={clsx(
+        'group flex h-full min-w-[110px] max-w-[220px] flex-shrink-0 cursor-pointer items-center gap-2 border-r border-ide-bg pl-3 pr-1.5 text-[13px]',
+        active
+          ? 'border-t border-t-ide-accent bg-ide-bg text-white'
+          : 'bg-ide-tab text-[#969696] hover:text-gray-200'
+      )}
+      title={tooltip}
+      onClick={() => useIDEStore.getState().setActiveTab(tab.id)}
+      onMouseDown={(e) => e.button === 1 && close(e)}
+    >
+      <span className="flex-none">{icon}</span>
+      <span className={clsx('flex-1 truncate', tab.type !== 'FILE' && 'italic')}>{title}</span>
+      <button
+        onClick={close}
+        className="relative flex h-5 w-5 flex-none items-center justify-center rounded hover:bg-ide-border"
+        title="Fechar (Ctrl+W)"
+      >
+        {isDirty && (
+          <span className="absolute h-2 w-2 rounded-full bg-gray-300 group-hover:hidden" />
+        )}
+        <X
+          size={14}
+          className={clsx(
+            isDirty && 'invisible group-hover:visible',
+            !active && !isDirty && 'invisible group-hover:visible'
+          )}
+        />
+      </button>
+    </div>
+  )
+}
 
-      {/* Editor Content */}
-      <div className="flex-1 bg-[#1e1e1e] overflow-hidden">
-         {!activeTab ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-500">
-               <img src={logo} alt="Logo" className="w-64 h-64 mb-6 opacity-90 hover:opacity-100 transition-opacity duration-500" />
-               <div className="text-4xl mb-4 font-thin tracking-wider">Step-by-Step Code</div>
-               <p className="text-sm">Open a folder or select a step to begin.</p>
-               <p className="text-xs mt-2 text-gray-600">Shortcuts: Ctrl+Shift+P</p>
-            </div>
-         ) : activeTab.type === 'FLOW' ? (
-            <div className="h-full w-full">
-               <FlowEditor />
-            </div>
-         ) : (
-            <div className="h-full w-full">
-               <CodeEditor />
-            </div>
-         )}
+const MainEditor = (): React.JSX.Element => {
+  const tabs = useIDEStore((s) => s.tabs)
+  const activeTabId = useIDEStore((s) => s.activeTabId)
+  const activeTab = tabs.find((t) => t.id === activeTabId)
+
+  return (
+    <div className="flex h-full flex-col">
+      {tabs.length > 0 && (
+        <div className="tab-strip flex h-9 flex-none overflow-x-auto overflow-y-hidden bg-ide-panel">
+          {tabs.map((tab) => (
+            <TabButton key={tab.id} tab={tab} active={tab.id === activeTabId} />
+          ))}
+        </div>
+      )}
+
+      <div className="min-h-0 flex-1 bg-ide-bg">
+        {!activeTab ? (
+          <Welcome />
+        ) : activeTab.type === 'FILE' ? (
+          <CodeEditor path={activeTab.id} />
+        ) : activeTab.type === 'FLOW' ? (
+          <FlowEditor flowId={activeTab.id} />
+        ) : (
+          <StepConfigEditor key={activeTab.id} stepId={activeTab.id} />
+        )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default MainEditor;
+export default MainEditor

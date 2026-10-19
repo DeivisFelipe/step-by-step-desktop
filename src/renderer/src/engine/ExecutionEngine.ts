@@ -1,209 +1,277 @@
-import { ActionType, StepData, FileAction, TerminalAction } from '../types/schema';
-import { useFileSystemStore } from '../store/useFileSystemStore';
-import { useIDEStore } from '../store/useIDEStore';
-import { useRef } from 'react';
+import type { editor as MonacoEditor } from 'monaco-editor'
+import { FileAction, LessonNode, TerminalAction } from '../types/schema'
+import { useFileSystemStore } from '../store/useFileSystemStore'
+import { useIDEStore } from '../store/useIDEStore'
+import { resolvePlaceholders } from '../lib/tree'
+import { relativeTo, resolveInWorkspace } from '../lib/paths'
+import { getCodeEditor, getTerminalId, sleep } from '../lib/registry'
+import { modelPathFor, monaco } from '../lib/monaco'
 
-export interface ExecutionContext {
-  editorInstance?: any; // Monaco editor instance
-  terminalInstance?: any; // XTerm instance
+/** What a step changed on disk, so it can be undone. `before === null` means the file was created. */
+export interface FileChange {
+  path: string
+  before: string | null
 }
 
-export const useExecutionEngine = () => {
-  const fileStore = useFileSystemStore();
-  const ideStore = useIDEStore();
-  
-  // Keep track of active intervals for typing animation to cancel them if needed
-  const typingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+/** An error meant to be shown to the presenter as is. */
+export class StepError extends Error {}
 
-  const executeStep = async (stepId: string, data: StepData, context: ExecutionContext) => {
-    // 1. Snapshot
-    if (data.enableSnapshot) {
-      fileStore.saveSnapshot(stepId);
-    }
+const DEFAULT_FILE_TYPING_MS = 30
+const DEFAULT_TERMINAL_TYPING_MS = 35
 
-    // 2. Action
-    await executeAction(data.action, context, fileStore, ideStore);
-  };
+let skipRequested = false
 
-  const executeAction = async (
-    action: ActionType, 
-    context: ExecutionContext,
-    fileStore: ReturnType<typeof useFileSystemStore>,
-    ideStore: ReturnType<typeof useIDEStore>
-  ) => {
-    
-    // Clear previous animations
-    if (typingIntervalRef.current) {
-      clearInterval(typingIntervalRef.current);
-      typingIntervalRef.current = null;
-    }
+/** Finishes the running typing animation immediately. */
+export function skipAnimation(): void {
+  skipRequested = true
+}
 
-    if (action.kind === 'FILE') {
-      await handleFileAction(action, context, fileStore, ideStore, typingIntervalRef);
-    } else if (action.kind === 'TERMINAL') {
-      await handleTerminalAction(action, context);
-    }
-  };
+export async function executeStep(step: LessonNode): Promise<FileChange[]> {
+  if (step.type !== 'STEP' || !step.data) return []
+  skipRequested = false
+  const { action } = step.data
+  if (action.kind === 'FILE') return runFileAction(action)
+  await runTerminalAction(action)
+  return []
+}
 
-  return { executeStep };
-};
-
-async function handleFileAction(
-  action: FileAction, 
-  context: ExecutionContext,
-  fileStore: any,
-  ideStore: any,
-  intervalRef: React.MutableRefObject<NodeJS.Timeout | null>
-) {
-  // Resolve Target
-  let targetPath = action.targetPath;
-  if (action.targetMode === 'ACTIVE_FILE') {
-    targetPath = ideStore.activeFileId;
-  }
-  
-  if (!targetPath) {
-     console.warn("No target path available for active file mode");
-     return;
-  }
-
-  // Ensure file exists (Real FS)
-  // If we are creating, we assume we can write. 
-  // If modifying, we need to read it first if not in store?
-  // Stores 'files' has open files. If not open, we might need to read it.
-  
-  let currentContent = '';
-  if (fileStore.files[targetPath]) {
-     currentContent = fileStore.files[targetPath].content;
-  } else {
-     // Try reading from disk if not "CREATE"
-     if (action.operation !== 'CREATE') {
-        try {
-           currentContent = await window.api.readFile(targetPath);
-        } catch (e) {
-           // File might not exist
-           currentContent = '';
-        }
-     }
-  }
-
-  const originalContent = currentContent;
-  let finalContent = originalContent;
-
-  // Operations calculation
-  if (action.operation === 'CREATE' || action.operation === 'OVERWRITE') {
-    finalContent = action.content;
-  } else if (action.operation === 'APPEND') {
-    finalContent = originalContent + (originalContent ? '\n' : '') + action.content;
-  } else if (action.operation === 'PREPEND') {
-    finalContent = action.content + (originalContent ? '\n' : '') + originalContent;
-  } else if (action.operation === 'REPLACE_TOKEN' && action.replaceToken) {
-    finalContent = originalContent.replace(action.replaceToken, action.content);
-  } else if (action.operation === 'CURSOR_POSITION') {
-    if (!context.editorInstance) {
-       finalContent = originalContent + '\n' + action.content;
+/** Restores the files touched by a step. */
+export async function revertChanges(changes: FileChange[]): Promise<void> {
+  const fs = useFileSystemStore.getState()
+  for (const change of [...changes].reverse()) {
+    if (change.before === null) {
+      await fs.deleteNode(change.path)
     } else {
-       // Monaco handles it, but we also want to persist to disk?
-       // If we use Monaco edits, content update happens via onChange -> execution?
-       // Usually onChange updates store. But for Step execution we want explicit control.
-       // Let's defer CURSOR_POSITION to pure editor manipulation if possible.
-       // But we still need to save to disk if we want persistence.
-       // Monaco's value will be updated. We should get it.
-       // However, strictly speaking, we calculate `finalContent` here.
+      await fs.writeFile(change.path, change.before)
     }
   }
+  await useFileSystemStore.getState().refreshTree()
+}
 
-  // Animation & Execution
-  if (action.operation === 'CURSOR_POSITION' && context.editorInstance) {
-       const editor = context.editorInstance;
-       const text = action.content;
-       
-       if (action.config.typingAnimation) {
-         let i = 0;
-         const speed = action.config.typingSpeedMs || 50;
-         intervalRef.current = setInterval(() => {
-            if (i >= text.length) {
-              if (intervalRef.current) clearInterval(intervalRef.current);
-              return;
-            }
-            const char = text[i];
-            editor.executeEdits('typing-anim', [{
-              range: {
-                 startLineNumber: editor.getPosition().lineNumber,
-                 startColumn: editor.getPosition().column,
-                 endLineNumber: editor.getPosition().lineNumber,
-                 endColumn: editor.getPosition().column
-              },
-              text: char,
-              forceMoveMarkers: true
-            }]);
-            i++;
-            // Note: Saving to disk during animation is expensive. 
-            // We should save after animation? Or rely on editor `onChange` to autosave?
-            // `CodeEditor` doesn't have autosave to disk yet.
-            // We'll leave disk save for now for animation.
-         }, speed);
-       } else {
-         editor.executeEdits('step-action', [{
-           range: {
-              startLineNumber: editor.getPosition().lineNumber,
-              startColumn: editor.getPosition().column,
-              endLineNumber: editor.getPosition().lineNumber,
-              endColumn: editor.getPosition().column
-           },
-           text: text,
-           forceMoveMarkers: true
-         }]);
-       }
-       // We assume editor updates internal state.
-       // For disk sync, we might miss it here.
-       // ideally we wait for animation to finish.
-  } else {
-      // Non-cursor operations
-      
-      // Animation (Simulated for real FS?)
-      // Writing char-by-char to disk is bad.
-      // We should probably just write the final content for Real FS, 
-      // OR only animate if file is OPEN in editor and let editor animate it?
-      
-      // Simplification: Write final content to disk.
-      // If user wants animation, they should use 'CURSOR_POSITION' on active file.
-      // Or we can simulate typing in editor if file IS active.
-      
-      try {
-         await window.api.writeFile(targetPath, finalContent);
-         // Refresh store
-         await fileStore.openFile(targetPath);
-         ideStore.setActiveFile(targetPath);
-      } catch (e) {
-         console.error("Write failed", e);
+// --- File actions ------------------------------------------------------------
+
+function resolveTarget(action: FileAction): string {
+  const { rootPath } = useFileSystemStore.getState()
+  const usesPath = action.operation === 'CREATE' || action.targetMode === 'SPECIFIC_PATH'
+  if (!usesPath) {
+    const active = useIDEStore.getState().activeFilePath()
+    if (!active) {
+      throw new StepError(
+        'Este passo usa o arquivo ativo, mas nenhum arquivo está aberto no editor.'
+      )
+    }
+    return active
+  }
+  if (!action.targetPath?.trim()) throw new StepError('Informe o caminho do arquivo deste passo.')
+  const path = resolveInWorkspace(rootPath, action.targetPath)
+  if (!path) throw new StepError('Abra uma pasta para usar caminhos relativos.')
+  return path
+}
+
+/** Plain string version of each operation (used when there is no animation). */
+function applyOperation(current: string, action: FileAction, text: string): string {
+  switch (action.operation) {
+    case 'CREATE':
+    case 'OVERWRITE':
+      return text
+    case 'PREPEND':
+      return text + (current && !text.endsWith('\n') ? '\n' : '') + current
+    case 'REPLACE_TOKEN': {
+      const token = action.replaceToken ?? ''
+      if (!token || !current.includes(token)) {
+        throw new StepError(`O texto "${token}" não foi encontrado no arquivo.`)
       }
+      return current.replace(token, () => text)
+    }
+    case 'APPEND':
+    case 'CURSOR_POSITION':
+    default:
+      return current + (current && !current.endsWith('\n') ? '\n' : '') + text
   }
 }
 
-// Helper to parsing placeholders [[Key:Value]] -> Value
-const parsePlaceholders = (text: string): string => {
-  return text.replace(/\[\[(.*?):(.*?)\]\]/g, (_match, _key, value) => value);
-};
+async function runFileAction(action: FileAction): Promise<FileChange[]> {
+  const path = resolveTarget(action)
+  const fs = useFileSystemStore.getState()
 
-async function handleTerminalAction(action: TerminalAction, _context: ExecutionContext) {
-  if (action.command) {
-    const finalCommand = parsePlaceholders(action.command);
-    
-    // Typing Animation for Terminal
-    // We can support typingSpeedMs config if added to Scheme, using default for now.
-    const typingAnimation = true; // Force true for now as per features?
-    
-    if (typingAnimation) {
-       for (const char of finalCommand) {
-          window.api.sendTerminalInput(char);
-          await new Promise(r => setTimeout(r, 10)); // Fast typing
-       }
-    } else {
-       window.api.sendTerminalInput(finalCommand);
+  const existed = await window.api.exists(path)
+  let before: string | null = null
+  if (existed) {
+    const cached = useFileSystemStore.getState().files[path]
+    // Re-read from disk unless the presenter has unsaved edits in the editor.
+    if (!cached || cached.content === cached.savedContent) {
+      if (!(await fs.loadFile(path, true))) throw new StepError(`Não foi possível ler ${path}.`)
     }
+    before = useFileSystemStore.getState().files[path].content
+  } else {
+    if (action.operation !== 'CREATE' && action.targetMode === 'ACTIVE_FILE') {
+      throw new StepError('O arquivo ativo não existe mais no disco.')
+    }
+    await fs.writeFile(path, '')
+    await fs.expandTo(path)
+  }
 
-    if (action.executeImmediately) {
-       window.api.sendTerminalInput('\r');
+  const text = resolvePlaceholders(action.content).replace(/\r\n?/g, '\n')
+  const ide = useIDEStore.getState()
+  ide.openFileTab(path)
+  useFileSystemStore.getState().select(path)
+
+  const editor = await waitForEditor(path)
+  if (editor && (action.config.typingAnimation || action.operation === 'CURSOR_POSITION')) {
+    await animateInEditor(editor, action, text)
+    useFileSystemStore.getState().setContent(path, editor.getModel()!.getValue())
+  } else {
+    const current = useFileSystemStore.getState().files[path]?.content ?? ''
+    useFileSystemStore.getState().setContent(path, applyOperation(current, action, text))
+  }
+
+  await useFileSystemStore.getState().saveFile(path)
+  return [{ path, before }]
+}
+
+async function waitForEditor(path: string): Promise<MonacoEditor.IStandaloneCodeEditor | null> {
+  const target = modelPathFor(path)
+  for (let elapsed = 0; elapsed < 3000; elapsed += 25) {
+    const editor = getCodeEditor()
+    if (editor?.getModel()?.uri.toString() === target) return editor
+    await sleep(25)
+  }
+  return null
+}
+
+async function animateInEditor(
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  action: FileAction,
+  text: string
+): Promise<void> {
+  const model = editor.getModel()!
+  const content = model.getValue().replace(/\r\n/g, '\n')
+  let start: monaco.IPosition
+
+  switch (action.operation) {
+    case 'CREATE':
+    case 'OVERWRITE':
+      editor.executeEdits('ssc-step', [{ range: model.getFullModelRange(), text: '' }])
+      start = { lineNumber: 1, column: 1 }
+      break
+    case 'PREPEND':
+      start = { lineNumber: 1, column: 1 }
+      if (content && !text.endsWith('\n')) text += '\n'
+      break
+    case 'REPLACE_TOKEN': {
+      const token = action.replaceToken ?? ''
+      const match = token ? model.findMatches(token, false, false, true, null, false)[0] : null
+      if (!match) throw new StepError(`O texto "${token}" não foi encontrado no arquivo.`)
+      editor.executeEdits('ssc-step', [{ range: match.range, text: '' }])
+      start = match.range.getStartPosition()
+      break
+    }
+    case 'CURSOR_POSITION': {
+      const selection = editor.getSelection()
+      if (selection && !selection.isEmpty()) {
+        editor.executeEdits('ssc-step', [{ range: selection, text: '' }])
+      }
+      start = selection?.getStartPosition() ?? model.getFullModelRange().getEndPosition()
+      break
+    }
+    case 'APPEND':
+    default: {
+      start = model.getFullModelRange().getEndPosition()
+      if (content && !content.endsWith('\n')) text = '\n' + text
     }
   }
+
+  editor.focus()
+  if (!action.config.typingAnimation) {
+    insertAt(editor, start, text)
+  } else {
+    await typeInto(editor, start, text, action.config.typingSpeedMs ?? DEFAULT_FILE_TYPING_MS)
+  }
+  editor.pushUndoStop()
+}
+
+function insertAt(
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  position: monaco.IPosition,
+  text: string
+): monaco.IPosition {
+  const range = new monaco.Range(
+    position.lineNumber,
+    position.column,
+    position.lineNumber,
+    position.column
+  )
+  editor.executeEdits('ssc-typing', [{ range, text, forceMoveMarkers: true }])
+  const lines = text.split('\n')
+  const end =
+    lines.length === 1
+      ? { lineNumber: position.lineNumber, column: position.column + text.length }
+      : {
+          lineNumber: position.lineNumber + lines.length - 1,
+          column: lines[lines.length - 1].length + 1
+        }
+  editor.setPosition(end)
+  editor.revealPositionInCenterIfOutsideViewport(end)
+  return end
+}
+
+/** Splits text into typing chunks: a newline plus its indentation is typed at once. */
+function typingChunks(text: string): string[] {
+  return text.match(/\n[ \t]*|[\s\S]/gu) ?? []
+}
+
+async function typeInto(
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  start: monaco.IPosition,
+  text: string,
+  speedMs: number
+): Promise<void> {
+  const chunks = typingChunks(text)
+  let position = start
+  for (let i = 0; i < chunks.length; i++) {
+    if (skipRequested || editor.getModel() === null) {
+      if (editor.getModel()) insertAt(editor, position, chunks.slice(i).join(''))
+      return
+    }
+    position = insertAt(editor, position, chunks[i])
+    if (speedMs > 0) await sleep(speedMs)
+  }
+}
+
+// --- Terminal actions --------------------------------------------------------
+
+async function runTerminalAction(action: TerminalAction): Promise<void> {
+  const command = resolvePlaceholders(action.command).replace(/\r?\n/g, '\r')
+  if (!command.trim()) throw new StepError('Este passo não tem nenhum comando.')
+
+  useIDEStore.getState().setTerminalVisible(true)
+  let id = getTerminalId()
+  for (let elapsed = 0; id === null && elapsed < 3000; elapsed += 50) {
+    await sleep(50)
+    id = getTerminalId()
+  }
+  if (id === null) throw new StepError('O terminal não está disponível.')
+
+  if (action.typingAnimation === false) {
+    window.api.sendTerminalInput(id, command)
+  } else {
+    const speed = action.typingSpeedMs ?? DEFAULT_TERMINAL_TYPING_MS
+    const chars = [...command]
+    for (let i = 0; i < chars.length; i++) {
+      if (skipRequested) {
+        window.api.sendTerminalInput(id, chars.slice(i).join(''))
+        break
+      }
+      window.api.sendTerminalInput(id, chars[i])
+      await sleep(speed)
+    }
+  }
+  if (action.executeImmediately) window.api.sendTerminalInput(id, '\r')
+}
+
+export function describeTarget(action: FileAction, root: string | null): string {
+  if (action.operation !== 'CREATE' && action.targetMode === 'ACTIVE_FILE') return 'arquivo ativo'
+  if (!action.targetPath) return 'sem caminho'
+  const resolved = resolveInWorkspace(root, action.targetPath)
+  return resolved ? relativeTo(root, resolved) : action.targetPath
 }

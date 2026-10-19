@@ -1,248 +1,204 @@
-import { useCallback, useMemo, useState, useEffect } from 'react';
-import { 
-  ReactFlow, 
-  MiniMap, 
-  Controls, 
-  Background, 
-  useNodesState, 
-  useEdgesState, 
-  addEdge, 
-  Connection, 
-  Edge, 
-  Node,
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Background,
+  Connection,
+  Controls,
+  Edge,
   MarkerType,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
-import { StepNode } from './StepNode';
-import { StartNode } from './StartNode';
-import { FlowContextMenu } from './FlowContextMenu';
-import { useIDEStore } from '../../store/useIDEStore';
-import { useLessonStore } from '../../store/useLessonStore';
-import { v4 as uuidv4 } from 'uuid';
+  ReactFlow,
+  ReactFlowInstance
+} from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
+import { Plus } from 'lucide-react'
+import { StepFlowNode, StepNode } from './StepNode'
+import { StartFlowNode, StartNode } from './StartNode'
+import { FlowContextMenu, FlowMenuState } from './FlowContextMenu'
+import { useLessonStore } from '../../store/useLessonStore'
+import { useFileSystemStore } from '../../store/useFileSystemStore'
+import { useIDEStore } from '../../store/useIDEStore'
+import { getNextStep, usePlayerStore } from '../../store/usePlayerStore'
+import { findNode, flattenSteps } from '../../lib/tree'
+import { describeTarget } from '../../engine/ExecutionEngine'
+import { openNode } from '../../lib/lessonActions'
 
-const nodeTypes = {
-  step: StepNode,
-  start: StartNode
-};
+type FlowNode = StepFlowNode | StartFlowNode
 
-const defaultEdgeOptions = {
-    markerEnd: {
-        type: MarkerType.ArrowClosed
-    },
-    type: 'smoothstep' 
-};
+const nodeTypes = { step: StepNode, start: StartNode }
 
-// Layout constants
-const START_X = 50;
-const START_Y = 250; 
-const NODE_SpacingX = 200;
+const edgeOptions = {
+  type: 'smoothstep',
+  markerEnd: { type: MarkerType.ArrowClosed },
+  style: { strokeWidth: 2 }
+}
 
-const FlowEditor = () => {
-  const { activeTabId, tabs, addAnnotation, openTab } = useIDEStore();
-  const { tree, addNode, updateNode, removeNode, reorderNode, moveNode, moveNodeToFront } = useLessonStore(); 
-  
-  const activeTab = tabs.find(t => t.id === activeTabId);
-  
-  // Robust Flow Detection: Try to match activeTab.id to a Flow Node in Tree
-  // If not found, (or if activeTab is not set?), fallback to the first FLOW found (default behavior)
-  const flowNode = useMemo(() => {
-      // Recursive find
-      const findFlow = (nodes: import('../../types/schema').LessonNode[]): import('../../types/schema').LessonNode | undefined => {
-          for (const node of nodes) {
-              if (node.type === 'FLOW' && (node.id === activeTabId || node.id === activeTab?.id)) {
-                  return node;
-              }
-              if (node.children) {
-                  const found = findFlow(node.children);
-                  if (found) return found;
-              }
+const START_ID = 'start-node'
+const START_X = 0
+const ROW_Y = 0
+const SPACING_X = 240
+
+const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
+  const tree = useLessonStore((s) => s.tree)
+  const selectedNodeId = useLessonStore((s) => s.selectedNodeId)
+  const rootPath = useFileSystemStore((s) => s.rootPath)
+  const history = usePlayerStore((s) => s.history)
+  const runningStepId = usePlayerStore((s) => s.runningStepId)
+  const [menu, setMenu] = useState<FlowMenuState | null>(null)
+  const instanceRef = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null)
+
+  const flow = findNode(tree, flowId)
+  const steps = useMemo(() => (flow?.type === 'FLOW' ? (flow.children ?? []) : []), [flow])
+
+  const nodes = useMemo<FlowNode[]>(() => {
+    const numbers = new Map(flattenSteps(tree).map((s, i) => [s.id, i + 1]))
+    const executed = new Set(history.map((h) => h.stepId))
+    const nextId = getNextStep(tree, history)?.id
+    return [
+      {
+        id: START_ID,
+        type: 'start',
+        position: { x: START_X, y: ROW_Y + 18 },
+        data: {},
+        draggable: false,
+        selectable: false,
+        deletable: false
+      },
+      ...steps.map(
+        (step, index): StepFlowNode => ({
+          id: step.id,
+          type: 'step',
+          position: { x: START_X + 130 + index * SPACING_X, y: ROW_Y },
+          draggable: false,
+          deletable: false,
+          selected: step.id === selectedNodeId,
+          data: {
+            title: step.title,
+            subtitle:
+              step.data?.action.kind === 'TERMINAL'
+                ? `$ ${step.data.action.command.split('\n')[0]}`
+                : step.data
+                  ? describeTarget(step.data.action, rootPath)
+                  : '',
+            number: numbers.get(step.id) ?? index + 1,
+            kind: step.data?.action.kind ?? 'FILE',
+            executed: executed.has(step.id),
+            next: step.id === nextId,
+            running: step.id === runningStepId
           }
-          return undefined;
-      };
-      
-      let found = findFlow(tree);
-      if (!found) {
-          // Fallback: Find *any* flow if we are in a "Flow" tab context but ID might utilize path (legacy)
-          // Or just default to root-flow for now if we only have one main flow.
-          found = tree.find(n => n.type === 'FLOW');
-      }
-      return found;
-  }, [tree, activeTabId, activeTab]);
+        })
+      )
+    ]
+  }, [steps, tree, history, selectedNodeId, rootPath, runningStepId])
 
-  const steps = flowNode?.children || [];
+  const edges = useMemo<Edge[]>(() => {
+    const ids = [START_ID, ...steps.map((s) => s.id)]
+    return ids.slice(1).map((target, i) => ({
+      id: `e-${ids[i]}-${target}`,
+      source: ids[i],
+      target,
+      sourceHandle: 'r',
+      targetHandle: 'l',
+      deletable: false,
+      ...edgeOptions
+    }))
+  }, [steps])
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [menu, setMenu] = useState<{ x: number, y: number, type: 'node' | 'pane' | 'edge', id?: string } | null>(null);
-
-  // Sync Store -> ReactFlow
+  // Re-fit the view when steps are added or removed.
   useEffect(() => {
-     if (!flowNode) return;
+    const timer = setTimeout(
+      () => instanceRef.current?.fitView({ padding: 0.3, duration: 200, maxZoom: 1.2 }),
+      50
+    )
+    return () => clearTimeout(timer)
+  }, [steps.length])
 
-     const newNodes: Node[] = [];
-     const newEdges: Edge[] = [];
-
-     // 1. Add Start Node
-     newNodes.push({
-         id: 'start-node',
-         type: 'start',
-         position: { x: START_X, y: START_Y },
-         data: { label: 'Start' },
-         draggable: false, 
-         deletable: false,
-         selectable: false 
-     });
-
-     // 2. Add Step Nodes (Auto-layout Horizontal)
-     steps.forEach((step, index) => {
-         newNodes.push({
-             id: step.id,
-             type: 'step',
-             position: { x: START_X + 150 + (index * NODE_SpacingX), y: START_Y - 20 }, // Center aligned vertically with start
-             data: { label: step.title }
-         });
-     });
-
-     // 3. Auto-Generate Edges (Start -> Step 1 -> Step 2 ...)
-     if (steps.length > 0) {
-         // Start -> First
-         newEdges.push({
-             id: 'e-start-first',
-             source: 'start-node',
-             target: steps[0].id,
-             ...defaultEdgeOptions
-         });
-
-         // Step -> Step
-         for (let i = 0; i < steps.length - 1; i++) {
-             newEdges.push({
-                 id: `e-${steps[i].id}-${steps[i+1].id}`,
-                 source: steps[i].id,
-                 target: steps[i+1].id,
-                 ...defaultEdgeOptions
-             });
-         }
-     }
-
-     setNodes(newNodes);
-     setEdges(newEdges);
-
-  }, [steps, flowNode]); // Re-run when store steps change
-
+  /** Connecting A → B makes B come right after A (Start → B makes it the first step). */
   const onConnect = useCallback(
-    (params: Connection) => {
-        // Validation: 1 Input / 1 Output
-        if (params.source === 'start-node') {
-           // Start node only output
-        }
-
-
-        // Logic: "Adding an edge the order of steps updates"
-        if (params.source && params.target) {
-            const sourceId = params.source;
-            const targetId = params.target;
-
-            if (sourceId === 'start-node') {
-               // Move connected node to the START of the current flow
-               if (flowNode) {
-                  moveNodeToFront(targetId, flowNode.id);
-               }
-            } else {
-               // Move target to be after source
-               moveNode(targetId, sourceId);
-            }
-        }
+    ({ source, target }: Connection) => {
+      if (!source || !target || source === target) return
+      const lesson = useLessonStore.getState()
+      if (source === START_ID) lesson.placeFirst(target, flowId)
+      else lesson.placeAfter(target, source)
     },
-    [moveNode],
-  );
+    [flowId]
+  )
 
-  // Context Menu Actions (Call Store)
-  const handleAddNode = () => {
-      // Add to store
-      const parentId = flowNode?.id || null;
-      addNode(parentId, 'STEP', 'New Step');
-      setMenu(null);
-  };
+  if (!flow || flow.type !== 'FLOW') {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-ide-muted">
+        Este fluxo foi removido.
+      </div>
+    )
+  }
 
-  const handleEditStep = () => {
-      if (menu?.id && menu.id !== 'start-node') {
-          openTab({ id: menu.id, type: 'STEP', title: 'Edit Step', stepId: menu.id });
-          setMenu(null);
-      }
-  };
-  
-  const handleRename = () => {
-      if (menu?.id && menu.id !== 'start-node') {
-          const currentLabel = nodes.find(n => n.id === menu.id)?.data.label as string;
-          const newName = window.prompt("Enter new name:", currentLabel);
-          if (newName) {
-              updateNode(menu.id, { title: newName });
-          }
-          setMenu(null);
-      }
-  };
-
-  const handleDeleteNode = () => {
-      if (menu?.id && menu.id !== 'start-node') {
-          if(confirm('Delete step?')) {
-             removeNode(menu.id);
-          }
-          setMenu(null);
-      }
-  };
-
-  const handleDeleteEdge = () => {
-      // Deleting edge in linked list logic? 
-      // Does it mean reordering? Or just breaking the link (which breaks the list)?
-      // If A->B is deleted, B is "orphaned"?
-      // Or maybe we treat it as no-op for order, just visual removal?
-      // Since order drives edges, deleting edge might not make sense unless we remove the node or move it to end?
-      // User asked for "Option to delete edge".
-      // Let's allow visual deletion but it will reappear on sync if order persists.
-      // ACTUALLY: Maybe deleting edge A->B means B is no longer after A?
-      // This conflicts with "Linked List". 
-      // Implementation: Just remove local edge for now or warn.
-      if (menu?.id) {
-          setEdges(eds => eds.filter(e => e.id !== menu.id));
-          setMenu(null);
-      }
-  };
+  const addStep = (): void => {
+    const id = useLessonStore.getState().addNode('STEP', flowId)
+    useIDEStore.getState().openNodeTab(id, 'STEP')
+  }
 
   return (
-    <div style={{ width: '100%', height: '100%' }}>
-      <ReactFlow
+    <div className="relative h-full w-full">
+      <div className="pointer-events-none absolute left-4 top-3 z-10">
+        <div className="text-lg font-light text-white">{flow.title}</div>
+        <div className="text-[12px] text-ide-muted">
+          Arraste de um passo para outro para mudar a ordem · duplo clique para editar
+        </div>
+      </div>
+      <button
+        onClick={addStep}
+        className="absolute right-4 top-3 z-10 flex items-center gap-1.5 rounded bg-ide-accent px-3 py-1.5 text-[13px] text-white shadow hover:bg-sky-600"
+      >
+        <Plus size={14} /> Novo passo
+      </button>
+
+      <ReactFlow<FlowNode, Edge>
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onPaneContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, type: 'pane' }); }}
-        onNodeContextMenu={(e, node) => { e.preventDefault(); e.stopPropagation(); setMenu({ x: e.clientX, y: e.clientY, type: 'node', id: node.id }); }}
-        onEdgeContextMenu={(e, edge) => { e.preventDefault(); e.stopPropagation(); setMenu({ x: e.clientX, y: e.clientY, type: 'edge', id: edge.id }); }}
-        onPaneClick={() => setMenu(null)}
         nodeTypes={nodeTypes}
-        defaultEdgeOptions={defaultEdgeOptions}
+        onInit={(instance) => {
+          instanceRef.current = instance
+          instance.fitView({ padding: 0.3, maxZoom: 1.2 })
+        }}
+        onConnect={onConnect}
+        onNodeClick={(_, node) =>
+          node.id !== START_ID && useLessonStore.getState().selectNode(node.id)
+        }
+        onNodeDoubleClick={(_, node) => {
+          const step = findNode(useLessonStore.getState().tree, node.id)
+          if (step) openNode(step)
+        }}
+        onPaneClick={() => {
+          setMenu(null)
+          useLessonStore.getState().selectNode(null)
+        }}
+        onPaneContextMenu={(e) => {
+          e.preventDefault()
+          setMenu({ x: e.clientX, y: e.clientY })
+        }}
+        onNodeContextMenu={(e, node) => {
+          e.preventDefault()
+          if (node.id === START_ID) return
+          useLessonStore.getState().selectNode(node.id)
+          setMenu({ x: e.clientX, y: e.clientY, stepId: node.id })
+        }}
+        nodesDraggable={false}
+        deleteKeyCode={null}
         colorMode="dark"
-        fitView
+        minZoom={0.2}
+        proOptions={{ hideAttribution: true }}
       >
-        <Controls />
-        <MiniMap />
-        <Background gap={12} size={1} />
-        
-        {menu && (
-           <FlowContextMenu 
-              position={{ x: menu.x, y: menu.y }} 
-              type={menu.type} 
-              onClose={() => setMenu(null)}
-              onAddNode={handleAddNode}
-              onEdit={handleEditStep}
-              onRename={handleRename}
-              onDelete={menu.type === 'node' ? handleDeleteNode : handleDeleteEdge}
-           />
-        )}
+        <Controls showInteractive={false} />
+        <Background gap={16} size={1} />
       </ReactFlow>
-    </div>
-  );
-};
 
-export default FlowEditor;
+      {steps.length === 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-ide-muted">
+          Este fluxo ainda não tem passos.
+        </div>
+      )}
+
+      <FlowContextMenu flowId={flowId} menu={menu} onClose={() => setMenu(null)} />
+    </div>
+  )
+}
+
+export default FlowEditor

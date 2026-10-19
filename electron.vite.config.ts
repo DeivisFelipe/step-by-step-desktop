@@ -13,7 +13,7 @@ export default defineConfig({
     },
     plugins: [react()],
     optimizeDeps: {
-       exclude: ['monaco-editor'] 
+      exclude: ['monaco-editor']
     }
   }
 })

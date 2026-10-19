@@ -1,61 +1,90 @@
-import { useEffect, useRef } from 'react';
-import { Edit, Trash, Type, Link, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Edit, Play, Plus, Trash, Type } from 'lucide-react'
+import ContextMenu, { ContextMenuItem } from '../UI/ContextMenu'
+import { useLessonStore } from '../../store/useLessonStore'
+import { useIDEStore } from '../../store/useIDEStore'
+import { usePlayerStore } from '../../store/usePlayerStore'
+import { findNode } from '../../lib/tree'
+import { deleteNode, openNode, renameNode } from '../../lib/lessonActions'
 
-interface MenuProps {
-  position: { x: number, y: number };
-  onClose: () => void;
-  onEdit?: () => void;
-  onRename?: () => void;
-  onDelete?: () => void;
-  onAddNode?: () => void;
-  type: 'node' | 'pane' | 'edge';
+export interface FlowMenuState {
+  x: number
+  y: number
+  /** Step id for a node menu; absent for the pane menu. */
+  stepId?: string
 }
 
-export const FlowContextMenu = ({ position, onClose, onEdit, onRename, onDelete, onAddNode, type }: MenuProps) => {
-  const ref = useRef<HTMLDivElement>(null);
+interface FlowContextMenuProps {
+  flowId: string
+  menu: FlowMenuState | null
+  onClose: () => void
+}
 
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-        if (ref.current && !ref.current.contains(e.target as Node)) {
-            onClose();
+export const FlowContextMenu = ({
+  flowId,
+  menu,
+  onClose
+}: FlowContextMenuProps): React.JSX.Element => {
+  const lesson = useLessonStore.getState
+
+  const withStep = (fn: (id: string) => void) => (): void => {
+    if (menu?.stepId) fn(menu.stepId)
+  }
+
+  const items: ContextMenuItem[] = menu?.stepId
+    ? [
+        {
+          label: 'Executar passo',
+          icon: Play,
+          action: withStep((id) => usePlayerStore.getState().runStep(id))
+        },
+        {
+          label: 'Editar passo',
+          icon: Edit,
+          action: withStep((id) => {
+            const node = findNode(lesson().tree, id)
+            if (node) openNode(node)
+          })
+        },
+        {
+          label: 'Renomear',
+          icon: Type,
+          action: withStep((id) => {
+            const node = findNode(lesson().tree, id)
+            if (node) renameNode(node)
+          })
+        },
+        {
+          label: 'Mover para a esquerda',
+          icon: ArrowLeft,
+          separator: true,
+          action: withStep((id) => lesson().reorderNode(id, 'up'))
+        },
+        {
+          label: 'Mover para a direita',
+          icon: ArrowRight,
+          action: withStep((id) => lesson().reorderNode(id, 'down'))
+        },
+        {
+          label: 'Excluir',
+          icon: Trash,
+          danger: true,
+          separator: true,
+          action: withStep((id) => {
+            const node = findNode(lesson().tree, id)
+            if (node) deleteNode(node)
+          })
         }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [onClose]);
+      ]
+    : [
+        {
+          label: 'Novo passo',
+          icon: Plus,
+          action: () => {
+            const id = lesson().addNode('STEP', flowId)
+            useIDEStore.getState().openNodeTab(id, 'STEP')
+          }
+        }
+      ]
 
-  return (
-    <div 
-       ref={ref}
-       className="fixed z-50 bg-[#252526] border border-[#3e3e42] shadow-xl rounded-md py-1 min-w-[150px] text-gray-300 text-xs"
-       style={{ top: position.y, left: position.x }}
-    >
-       {type === 'node' && (
-          <>
-             <div onClick={onEdit} className="px-3 py-2 hover:bg-[#2a2d2e] cursor-pointer flex items-center">
-                <Edit size={14} className="mr-2" /> Edit Step
-             </div>
-             <div onClick={onRename} className="px-3 py-2 hover:bg-[#2a2d2e] cursor-pointer flex items-center">
-                <Type size={14} className="mr-2" /> Rename
-             </div>
-             <div className="h-[1px] bg-[#3e3e42] my-1" />
-             <div onClick={onDelete} className="px-3 py-2 hover:bg-[#2a2d2e] cursor-pointer flex items-center text-red-400">
-                <Trash size={14} className="mr-2" /> Delete
-             </div>
-          </>
-       )}
-
-       {type === 'pane' && (
-          <div onClick={onAddNode} className="px-3 py-2 hover:bg-[#2a2d2e] cursor-pointer flex items-center">
-             <Plus size={14} className="mr-2" /> Add Step
-          </div>
-       )}
-
-       {type === 'edge' && (
-           <div onClick={onDelete} className="px-3 py-2 hover:bg-[#2a2d2e] cursor-pointer flex items-center text-red-400">
-              <Link size={14} className="mr-2" /> Delete Connection
-           </div>
-       )}
-    </div>
-  );
-};
+  return <ContextMenu position={menu} items={items} onClose={onClose} />
+}

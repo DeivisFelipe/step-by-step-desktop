@@ -1,34 +1,40 @@
-import { FilePlus, FolderPlus, RefreshCw, MinusSquare } from 'lucide-react';
-import clsx from 'clsx';
+import { LucideIcon } from 'lucide-react'
 
-interface HeaderProps {
-    workspaceName: string;
-    onNewFile: () => void;
-    onNewFolder: () => void;
-    onRefresh: () => void;
-    onCollapseAll: () => void;
+export interface HeaderAction {
+  icon: LucideIcon
+  title: string
+  onClick: () => void
+  disabled?: boolean
 }
 
-export const FileExplorerHeader = ({ workspaceName, onNewFile, onNewFolder, onRefresh, onCollapseAll }: HeaderProps) => {
+interface SidebarHeaderProps {
+  title: string
+  actions?: HeaderAction[]
+}
+
+/** Section title with icon buttons, shared by the explorer and the steps panel. */
+export const SidebarHeader = ({ title, actions = [] }: SidebarHeaderProps): React.JSX.Element => {
   return (
-    <div className="px-5 py-2 text-xs font-bold tracking-wider uppercase flex justify-between items-center group">
-       <span className="truncate" title={workspaceName || "EXPLORER"}>
-          {workspaceName || "EXPLORER"}
-       </span>
-       <div className="flex items-center space-x-1">
-          <button onClick={onNewFile} className="p-1 hover:bg-[#3e3e42] rounded" title="New File">
-             <FilePlus size={14} />
+    <div className="flex h-9 flex-none items-center justify-between pl-5 pr-2 text-[11px] font-bold uppercase tracking-wider text-ide-text">
+      <span className="truncate" title={title}>
+        {title}
+      </span>
+      <div className="flex items-center gap-0.5">
+        {actions.map((action) => (
+          <button
+            key={action.title}
+            onClick={(e) => {
+              e.stopPropagation()
+              action.onClick()
+            }}
+            disabled={action.disabled}
+            className="rounded p-1 hover:bg-ide-border disabled:opacity-30 disabled:hover:bg-transparent"
+            title={action.title}
+          >
+            <action.icon size={16} />
           </button>
-          <button onClick={onNewFolder} className="p-1 hover:bg-[#3e3e42] rounded" title="New Folder">
-             <FolderPlus size={14} />
-          </button>
-          <button onClick={onRefresh} className="p-1 hover:bg-[#3e3e42] rounded" title="Refresh">
-             <RefreshCw size={14} />
-          </button>
-          <button onClick={onCollapseAll} className="p-1 hover:bg-[#3e3e42] rounded" title="Collapse All">
-             <MinusSquare size={14} />
-          </button>
-       </div>
+        ))}
+      </div>
     </div>
-  );
-};
+  )
+}

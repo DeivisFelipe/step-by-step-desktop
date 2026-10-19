@@ -1,148 +1,217 @@
-import { create } from 'zustand';
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import { basename, isInside, replacePrefix } from '../lib/paths'
+import { useFileSystemStore } from './useFileSystemStore'
 
-export type ActivityBarItem = 'EXPLORER' | 'STEPS';
+export type ActivityBarItem = 'EXPLORER' | 'STEPS'
 
 export interface Tab {
-  id: string;
-  type: 'FILE' | 'STEP' | 'FLOW';
-  title: string;
-  path?: string; // For FILE
-  stepId?: string; // For STEP/FLOW
-  isDirty?: boolean;
+  /** File path for FILE tabs, node id for STEP/FLOW tabs. */
+  id: string
+  type: 'FILE' | 'STEP' | 'FLOW'
 }
 
-export interface Annotation {
-  id: string;
-  message: string;
-  type?: 'info' | 'warning' | 'error';
-  duration?: number; // ms to auto-close
+export interface Toast {
+  id: string
+  message: string
+  type: 'info' | 'success' | 'warning' | 'error'
+}
+
+export interface TextPrompt {
+  title: string
+  initialValue: string
+  placeholder?: string
+  resolve: (value: string | null) => void
 }
 
 interface IDEStore {
-  activeFileId: string | null;  // Legacy: keeps track of active "File" path if active tab is FILE
-  openFiles: string[];          // Legacy: list of open file paths
-  activeActivity: ActivityBarItem;
-  
-  tabs: Tab[];
-  activeTabId: string | null;
-  annotations: Annotation[];
+  activeActivity: ActivityBarItem
+  sidebarVisible: boolean
+  sidebarWidth: number
+  terminalVisible: boolean
+  terminalHeight: number
 
-  // Actions
-  setActiveActivity: (item: ActivityBarItem) => void;
-  
-  // Legacy File API (Adapts to Tabs)
-  openFile: (path: string) => void;
-  closeFile: (path: string) => void;
-  setActiveFile: (path: string | null) => void;
+  tabs: Tab[]
+  activeTabId: string | null
+  toasts: Toast[]
+  prompt: TextPrompt | null
 
-  openTab: (tab: Tab) => void;
-  closeTab: (id: string) => void;
-  setActiveTab: (id: string) => void;
+  setActiveActivity: (item: ActivityBarItem) => void
+  toggleSidebar: () => void
+  setSidebarWidth: (width: number) => void
+  setTerminalVisible: (visible: boolean) => void
+  setTerminalHeight: (height: number) => void
 
-  addAnnotation: (message: string, type?: Annotation['type'], duration?: number) => void;
-  removeAnnotation: (id: string) => void;
+  openFileTab: (path: string) => void
+  openNodeTab: (id: string, type: 'STEP' | 'FLOW') => void
+  setActiveTab: (id: string) => void
+  /** Asks to save unsaved changes first. Resolves to false if the user cancelled. */
+  closeTab: (id: string) => Promise<boolean>
+  closeTabsUnder: (path: string) => void
+  closeNodeTabs: (ids: string[]) => void
+  closeAllTabs: () => void
+  renamePath: (oldPath: string, newPath: string) => void
+  /** Path of the file in the active tab, if it is a file tab. */
+  activeFilePath: () => string | null
+
+  notify: (message: string, type?: Toast['type'], duration?: number) => void
+  dismissToast: (id: string) => void
+  askText: (title: string, initialValue?: string, placeholder?: string) => Promise<string | null>
+  resolvePrompt: (value: string | null) => void
 }
 
-export const useIDEStore = create<IDEStore>((set, get) => ({
-  activeFileId: null,
-  openFiles: [],
-  activeActivity: 'EXPLORER',
-  
-  tabs: [],
-  activeTabId: null,
-  annotations: [],
+function nextActiveAfterClose(tabs: Tab[], closedIndex: number): string | null {
+  if (tabs.length === 0) return null
+  return tabs[Math.min(closedIndex, tabs.length - 1)].id
+}
 
-  setActiveActivity: (item) => set({ activeActivity: item }),
-  
-  // Legacy File implementations adapting to Tabs
-  openFile: (path) => {
-     // Check if tab exists
-     const { tabs, openTab } = get();
-     const existing = tabs.find(t => t.id === path && t.type === 'FILE');
-     if (existing) {
-        set({ activeTabId: path, activeFileId: path });
-     } else {
-        // Create new tab
-        const name = path.split(/[\\/]/).pop() || path;
-        openTab({ id: path, type: 'FILE', title: name, path });
-     }
-     
-     // also update openFiles cache?
-     set(state => {
-         if (!state.openFiles.includes(path)) return { openFiles: [...state.openFiles, path] };
-         return {};
-     });
-  },
+export const useIDEStore = create<IDEStore>()(
+  persist(
+    (set, get) => ({
+      activeActivity: 'EXPLORER',
+      sidebarVisible: true,
+      sidebarWidth: 280,
+      terminalVisible: true,
+      terminalHeight: 220,
 
-  closeFile: (path) => {
-     get().closeTab(path);
-     set(state => ({ openFiles: state.openFiles.filter(p => p !== path) }));
-  },
+      tabs: [],
+      activeTabId: null,
+      toasts: [],
+      prompt: null,
 
-  setActiveFile: (path) => {
-     if (path) get().openFile(path);
-     else set({ activeFileId: null });
-  },
+      setActiveActivity: (item) => {
+        const { activeActivity, sidebarVisible } = get()
+        // Clicking the active icon again hides the sidebar, like VS Code.
+        if (item === activeActivity && sidebarVisible) set({ sidebarVisible: false })
+        else set({ activeActivity: item, sidebarVisible: true })
+      },
+      toggleSidebar: () => set((s) => ({ sidebarVisible: !s.sidebarVisible })),
+      setSidebarWidth: (width) => set({ sidebarWidth: Math.min(Math.max(width, 180), 600) }),
+      setTerminalVisible: (visible) => set({ terminalVisible: visible }),
+      setTerminalHeight: (height) => set({ terminalHeight: Math.min(Math.max(height, 80), 800) }),
 
-  openTab: (tab) => {
-    const { tabs } = get();
-    const existing = tabs.find(t => t.id === tab.id);
-    if (existing) {
-      set({ activeTabId: existing.id });
-    } else {
-      set({ 
-         tabs: [...tabs, tab],
-         activeTabId: tab.id
-      });
-    }
-    // Sync activeFileId for legacy components
-    if (tab.type === 'FILE' && tab.path) {
-       set({ activeFileId: tab.path });
-    } else {
-       set({ activeFileId: null });
-    }
-  },
+      openFileTab: (path) => {
+        const { tabs } = get()
+        if (!tabs.some((t) => t.id === path)) set({ tabs: [...tabs, { id: path, type: 'FILE' }] })
+        set({ activeTabId: path })
+        useFileSystemStore.getState().loadFile(path)
+      },
 
-  closeTab: (id) => {
-    set((state) => {
-      const newTabs = state.tabs.filter(t => t.id !== id);
-      let newActiveId = state.activeTabId;
-      if (id === state.activeTabId) {
-         newActiveId = newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null;
+      openNodeTab: (id, type) => {
+        const { tabs } = get()
+        if (!tabs.some((t) => t.id === id)) set({ tabs: [...tabs, { id, type }] })
+        set({ activeTabId: id })
+      },
+
+      setActiveTab: (id) => set({ activeTabId: id }),
+
+      closeTab: async (id) => {
+        const tab = get().tabs.find((t) => t.id === id)
+        if (!tab) return true
+
+        if (tab.type === 'FILE') {
+          const fs = useFileSystemStore.getState()
+          const file = fs.files[id]
+          if (file && file.content !== file.savedContent) {
+            const choice = await window.api.showMessage({
+              type: 'warning',
+              message: `Salvar as alterações em ${basename(id)}?`,
+              detail: 'Suas alterações serão perdidas se você não salvá-las.',
+              buttons: ['Salvar', 'Não salvar', 'Cancelar'],
+              defaultId: 0,
+              cancelId: 2
+            })
+            if (choice === 2) return false
+            if (choice === 0) await fs.saveFile(id)
+          }
+          fs.forgetFile(id)
+        }
+
+        set((state) => {
+          const index = state.tabs.findIndex((t) => t.id === id)
+          const tabs = state.tabs.filter((t) => t.id !== id)
+          const activeTabId =
+            state.activeTabId === id ? nextActiveAfterClose(tabs, index) : state.activeTabId
+          return { tabs, activeTabId }
+        })
+        return true
+      },
+
+      closeTabsUnder: (path) => {
+        set((state) => {
+          const tabs = state.tabs.filter((t) => t.type !== 'FILE' || !isInside(t.id, path))
+          const activeTabId = tabs.some((t) => t.id === state.activeTabId)
+            ? state.activeTabId
+            : (tabs[tabs.length - 1]?.id ?? null)
+          return { tabs, activeTabId }
+        })
+      },
+
+      closeNodeTabs: (ids) => {
+        const remove = new Set(ids)
+        set((state) => {
+          const tabs = state.tabs.filter((t) => t.type === 'FILE' || !remove.has(t.id))
+          const activeTabId = tabs.some((t) => t.id === state.activeTabId)
+            ? state.activeTabId
+            : (tabs[tabs.length - 1]?.id ?? null)
+          return { tabs, activeTabId }
+        })
+      },
+
+      closeAllTabs: () => set({ tabs: [], activeTabId: null }),
+
+      renamePath: (oldPath, newPath) => {
+        const move = (p: string): string =>
+          isInside(p, oldPath) ? replacePrefix(p, oldPath, newPath) : p
+        set((state) => ({
+          tabs: state.tabs.map((t) => (t.type === 'FILE' ? { ...t, id: move(t.id) } : t)),
+          activeTabId: state.activeTabId ? move(state.activeTabId) : null
+        }))
+      },
+
+      activeFilePath: () => {
+        const { tabs, activeTabId } = get()
+        const tab = tabs.find((t) => t.id === activeTabId)
+        return tab?.type === 'FILE' ? tab.id : null
+      },
+
+      notify: (message, type = 'info', duration = 4000) => {
+        const id = crypto.randomUUID()
+        set((state) => ({ toasts: [...state.toasts.slice(-4), { id, message, type }] }))
+        if (duration > 0) setTimeout(() => get().dismissToast(id), duration)
+      },
+
+      dismissToast: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+
+      askText: (title, initialValue = '', placeholder) =>
+        new Promise((resolve) => {
+          get().prompt?.resolve(null)
+          set({ prompt: { title, initialValue, placeholder, resolve } })
+        }),
+
+      resolvePrompt: (value) => {
+        const prompt = get().prompt
+        set({ prompt: null })
+        prompt?.resolve(value)
       }
-      
-      // Update active file if needed
-      const newActiveTab = newTabs.find(t => t.id === newActiveId);
-      const newActiveFile = (newActiveTab?.type === 'FILE') ? newActiveTab.path : null;
-
-      return { tabs: newTabs, activeTabId: newActiveId, activeFileId: newActiveFile || null };
-    });
-  },
-
-  setActiveTab: (id) => {
-    set({ activeTabId: id });
-    const tab = get().tabs.find(t => t.id === id);
-    if (tab?.type === 'FILE' && tab.path) {
-       set({ activeFileId: tab.path });
-    } else {
-       set({ activeFileId: null });
+    }),
+    {
+      name: 'ssc-layout',
+      partialize: (s) => ({
+        activeActivity: s.activeActivity,
+        sidebarVisible: s.sidebarVisible,
+        sidebarWidth: s.sidebarWidth,
+        terminalVisible: s.terminalVisible,
+        terminalHeight: s.terminalHeight
+      })
     }
-  },
+  )
+)
 
-  addAnnotation: (message, type = 'info', duration = 3000) => {
-     const id = Math.random().toString(36).substr(2, 9);
-     const newAnn: Annotation = { id, message, type, duration };
-     
-     set(state => ({ annotations: [...state.annotations, newAnn] }));
-
-     if (duration > 0) {
-        setTimeout(() => {
-           set(state => ({ annotations: state.annotations.filter(a => a.id !== id) }));
-        }, duration);
-     }
-  },
-
-  removeAnnotation: (id) => set(state => ({ 
-     annotations: state.annotations.filter(a => a.id !== id) 
-  }))
-}));
+/** Shows an error from a failed operation as a toast. */
+export function reportError(error: unknown, prefix?: string): void {
+  const message = error instanceof Error ? error.message : String(error)
+  // Electron prefixes errors thrown in IPC handlers with this noise.
+  const clean = message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
+  useIDEStore.getState().notify(prefix ? `${prefix}: ${clean}` : clean, 'error', 6000)
+}

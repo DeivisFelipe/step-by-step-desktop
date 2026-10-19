@@ -1,222 +1,211 @@
-import { create } from 'zustand';
-import { FileSystem, Snapshots } from '../types/schema';
-
-// We now support "Real FS" mode where 'files' might be just a cache of open files
-// and we have a rootPath.
-
-interface FileSystemState {
-  rootPath: string | null;
-  files: FileSystem; // Cache of OPEN files content
-  fileTree: FileNode[]; // Directory structure
-  
-  // Actions
-  setRootPath: (path: string) => void;
-  loadDir: (path: string) => Promise<void>;
-  
-  toggleDirectory: (path: string) => void;
-  collapseAll: () => void;
-
-  openFile: (path: string) => Promise<void>;
-  closeFile: (path: string) => void;
-  saveFile: (path: string, content: string) => Promise<void>;
-  createFile: (path: string, content?: string) => Promise<void>;
-  createDirectory: (path: string) => Promise<void>;
-  deleteNode: (path: string) => Promise<void>;
-  renameNode: (oldPath: string, newPath: string) => Promise<void>;
-  
-  // Keep snapshots logic? 
-  // User asked for "Snapshots" support.
-  // With Real FS, snapshots are harder (need strict backups).
-  // For MVP refactor, we might disable snapshots or just warn.
-  snapshots: Snapshots;
-  saveSnapshot: (stepId: string) => void;
-  restoreSnapshot: (stepId: string) => void;
-}
+import { create } from 'zustand'
+import { basename, dirname, isInside, languageFromPath, replacePrefix } from '../lib/paths'
+import { useIDEStore } from './useIDEStore'
 
 export interface FileNode {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-  children?: FileNode[];
-  isExpanded?: boolean;
+  name: string
+  path: string
+  isDirectory: boolean
+  children?: FileNode[]
+}
+
+export interface OpenFile {
+  content: string
+  /** Content as it is on disk; differs from `content` while there are unsaved edits. */
+  savedContent: string
+  language: string
+}
+
+/** Entries never shown in the explorer (`.stepbystep` holds the lesson file). */
+const HIDDEN_ENTRIES = new Set(['.git', '.stepbystep'])
+
+interface FileSystemState {
+  rootPath: string | null
+  fileTree: FileNode[]
+  expanded: Record<string, boolean>
+  selectedPath: string | null
+  files: Record<string, OpenFile>
+
+  openFolder: (path: string) => Promise<void>
+  refreshTree: () => Promise<void>
+  toggleDirectory: (path: string) => Promise<void>
+  expandTo: (path: string) => Promise<void>
+  collapseAll: () => void
+  select: (path: string | null) => void
+
+  /** Loads a file into the cache. With `force`, re-reads it from disk. Returns false if missing. */
+  loadFile: (path: string, force?: boolean) => Promise<boolean>
+  setContent: (path: string, content: string) => void
+  saveFile: (path: string) => Promise<void>
+  /** Writes to disk and updates the cache as saved content. */
+  writeFile: (path: string, content: string) => Promise<void>
+  forgetFile: (path: string) => void
+
+  createFile: (path: string, content?: string) => Promise<void>
+  createDirectory: (path: string) => Promise<void>
+  deleteNode: (path: string) => Promise<void>
+  renameNode: (oldPath: string, newPath: string) => Promise<void>
+}
+
+async function readTree(dir: string, expanded: Record<string, boolean>): Promise<FileNode[]> {
+  const entries = await window.api.readDir(dir)
+  const visible = entries
+    .filter((e) => !HIDDEN_ENTRIES.has(e.name))
+    .sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+    })
+  return Promise.all(
+    visible.map(async (entry) => ({
+      name: entry.name,
+      path: entry.path,
+      isDirectory: entry.isDirectory,
+      children:
+        entry.isDirectory && expanded[entry.path] ? await readTree(entry.path, expanded) : undefined
+    }))
+  )
 }
 
 export const useFileSystemStore = create<FileSystemState>((set, get) => ({
   rootPath: null,
-  files: {},
   fileTree: [],
-  snapshots: {},
+  expanded: {},
+  selectedPath: null,
+  files: {},
 
-  setRootPath: (path) => set({ rootPath: path }),
+  openFolder: async (path) => {
+    set({ rootPath: path, fileTree: [], expanded: {}, selectedPath: null, files: {} })
+    await get().refreshTree()
+  },
 
-  toggleDirectory: (path) => {
-     set((state) => {
-        const toggleNode = (nodes: FileNode[]): FileNode[] => {
-           return nodes.map(node => {
-              if (node.path === path) {
-                 return { ...node, isExpanded: !node.isExpanded };
-              }
-              if (node.children) {
-                 return { ...node, children: toggleNode(node.children) };
-              }
-              return node;
-           });
-        };
-        return { fileTree: toggleNode(state.fileTree) };
-     });
+  refreshTree: async () => {
+    const { rootPath, expanded } = get()
+    if (!rootPath) return
+    const tree = await readTree(rootPath, expanded)
+    // The workspace may have changed while we were reading.
+    if (get().rootPath === rootPath) set({ fileTree: tree })
+  },
+
+  toggleDirectory: async (path) => {
+    set((state) => ({ expanded: { ...state.expanded, [path]: !state.expanded[path] } }))
+    await get().refreshTree()
+  },
+
+  expandTo: async (path) => {
+    const { rootPath } = get()
+    if (!rootPath || !isInside(path, rootPath)) return
+    const expanded = { ...get().expanded }
+    let dir = dirname(path)
+    while (isInside(dir, rootPath) && dir !== rootPath && dir.length > rootPath.length) {
+      expanded[dir] = true
+      dir = dirname(dir)
+    }
+    set({ expanded })
+    await get().refreshTree()
   },
 
   collapseAll: () => {
-    set((state) => {
-        const collapseRecursive = (nodes: FileNode[]): FileNode[] => {
-            return nodes.map(node => ({
-                ...node,
-                isExpanded: false,
-                children: node.children ? collapseRecursive(node.children) : undefined
-            }));
-        };
-        return { fileTree: collapseRecursive(state.fileTree) };
-    });
+    set({ expanded: {} })
+    get().refreshTree()
   },
 
-  loadDir: async (path) => {
-    // Read dir via API
-    try {
-      const items = await window.api.readDir(path);
-      // Sort: folders first
-      items.sort((a, b) => {
-         if (a.isDirectory && !b.isDirectory) return -1;
-         if (!a.isDirectory && b.isDirectory) return 1;
-         return a.name.localeCompare(b.name);
-      });
-      
-      const nodes: FileNode[] = items.map(item => ({
-        name: item.name,
-        path: item.path,
-        isDirectory: item.isDirectory,
-        children: item.isDirectory ? [] : undefined // placeholder
-      }));
+  select: (path) => set({ selectedPath: path }),
 
-      // If we are refreshing root
-      if (path === get().rootPath) {
-         set({ fileTree: nodes });
-      } else {
-         // Update sub-tree
-         set((state) => {
-             const updateTree = (list: FileNode[]): FileNode[] => {
-                return list.map(node => {
-                   if (node.path === path) {
-                      return { ...node, children: nodes, isExpanded: true };
-                   }
-                   if (node.children) {
-                      return { ...node, children: updateTree(node.children) };
-                   }
-                   return node;
-                });
-             };
-             return { fileTree: updateTree(state.fileTree) };
-         });
+  loadFile: async (path, force = false) => {
+    const cached = get().files[path]
+    if (cached && !force) return true
+    const content = await window.api.readFile(path)
+    if (content === null) return false
+    set((state) => ({
+      files: {
+        ...state.files,
+        [path]: { content, savedContent: content, language: languageFromPath(path) }
       }
-    } catch (e) {
-      console.error("Failed to read dir", e);
-    }
+    }))
+    return true
   },
 
-  openFile: async (path) => {
-    // Check if already open
-    if (get().files[path]?.isOpen) {
-        console.log(`[useFileSystemStore] File already open: ${path}`);
-        return;
-    }
-
-    try {
-      console.log(`[useFileSystemStore] Opening file: ${path}`);
-      const content = await window.api.readFile(path);
-      console.log(`[useFileSystemStore] Content loaded (${content.length} chars)`);
-      // Detect language extension
-      const ext = path.split('.').pop() || 'plaintext';
-      const language = getLanguageFromExt(ext);
-
-      set((state) => ({
-        files: {
-          ...state.files,
-          [path]: {
-             content,
-             language,
-             isOpen: true
-          }
-        }
-      }));
-    } catch (e) {
-      console.error("Failed to open file", e);
-    }
+  setContent: (path, content) => {
+    const file = get().files[path]
+    if (!file || file.content === content) return
+    set((state) => ({ files: { ...state.files, [path]: { ...file, content } } }))
   },
 
-  closeFile: (path) => {
+  saveFile: async (path) => {
+    const file = get().files[path]
+    if (!file) return
+    const content = file.content
+    await window.api.writeFile(path, content)
+    set((state) => ({
+      files: { ...state.files, [path]: { ...state.files[path], savedContent: content } }
+    }))
+  },
+
+  writeFile: async (path, content) => {
+    await window.api.writeFile(path, content)
+    set((state) => ({
+      files: {
+        ...state.files,
+        [path]: { content, savedContent: content, language: languageFromPath(path) }
+      }
+    }))
+  },
+
+  forgetFile: (path) => {
     set((state) => {
-       const newFiles = { ...state.files };
-       if (newFiles[path]) {
-          newFiles[path] = { ...newFiles[path], isOpen: false };
-       }
-       return { files: newFiles };
-    });
-  },
-
-  saveFile: async (path, content) => {
-     await window.api.writeFile(path, content);
-     set((state) => ({
-        files: {
-           ...state.files,
-           [path]: { ...state.files[path], content }
-        }
-     }));
+      const files = { ...state.files }
+      delete files[path]
+      return { files }
+    })
   },
 
   createFile: async (path, content = '') => {
-    await window.api.writeFile(path, content);
-    await get().openFile(path);
-    const parent = path.replace(/[\\/][^\\/]+$/, '');
-    if (parent) await get().loadDir(parent);
+    if (await window.api.exists(path)) throw new Error(`"${basename(path)}" já existe.`)
+    await get().writeFile(path, content)
+    await get().expandTo(path)
+    set({ selectedPath: path })
+    useIDEStore.getState().openFileTab(path)
   },
 
   createDirectory: async (path) => {
-    await window.api.createDir(path);
-    const parent = path.replace(/[\\/][^\\/]+$/, '');
-    if (parent) await get().loadDir(parent);
+    if (await window.api.exists(path)) throw new Error(`"${basename(path)}" já existe.`)
+    await window.api.createDir(path)
+    set((state) => ({ expanded: { ...state.expanded, [path]: true }, selectedPath: path }))
+    await get().expandTo(path)
   },
 
   deleteNode: async (path) => {
-    await window.api.delete(path);
-    get().closeFile(path);
-    const parent = path.replace(/[\\/][^\\/]+$/, '');
-    if (parent) await get().loadDir(parent);
+    await window.api.delete(path)
+    useIDEStore.getState().closeTabsUnder(path)
+    set((state) => {
+      const files = Object.fromEntries(
+        Object.entries(state.files).filter(([p]) => !isInside(p, path))
+      )
+      return {
+        files,
+        selectedPath:
+          state.selectedPath && isInside(state.selectedPath, path) ? null : state.selectedPath
+      }
+    })
+    await get().refreshTree()
   },
 
   renameNode: async (oldPath, newPath) => {
-    await window.api.rename(oldPath, newPath);
-    const { files, closeFile, openFile } = get();
-    if (files[oldPath]?.isOpen) {
-       closeFile(oldPath);
-       await openFile(newPath);
-    }
-    const parent = newPath.replace(/[\\/][^\\/]+$/, '');
-    if (parent) await get().loadDir(parent);
-  },
-
-  saveSnapshot: (_stepId) => {
-    // TODO: Implement Real FS snapshot (maybe Git integration?)
-    console.warn("Snapshots on Real FS not fully implemented");
-  },
-
-  restoreSnapshot: (_stepId) => {
-    console.warn("Snapshots on Real FS not fully implemented");
+    if (oldPath === newPath) return
+    await window.api.rename(oldPath, newPath)
+    const move = (p: string): string =>
+      isInside(p, oldPath) ? replacePrefix(p, oldPath, newPath) : p
+    set((state) => ({
+      files: Object.fromEntries(
+        Object.entries(state.files).map(([p, f]) => [
+          move(p),
+          { ...f, language: languageFromPath(move(p)) }
+        ])
+      ),
+      expanded: Object.fromEntries(Object.entries(state.expanded).map(([p, v]) => [move(p), v])),
+      selectedPath: state.selectedPath ? move(state.selectedPath) : null
+    }))
+    useIDEStore.getState().renamePath(oldPath, newPath)
+    await get().refreshTree()
   }
-}));
-
-function getLanguageFromExt(ext: string): string {
-  const map: Record<string, string> = {
-    js: 'javascript', ts: 'typescript', py: 'python', 
-    html: 'html', css: 'css', json: 'json', md: 'markdown'
-  };
-  return map[ext] || 'plaintext';
-}
+}))

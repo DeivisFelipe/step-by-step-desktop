@@ -1,26 +1,61 @@
-import { Handle, Position, NodeProps } from '@xyflow/react';
-import clsx from 'clsx';
+import { Handle, Node, NodeProps, Position } from '@xyflow/react'
+import clsx from 'clsx'
+import { CheckCircle2, FileCode, Loader2, Terminal } from 'lucide-react'
 
-export const StepNode = ({ data, selected }: NodeProps) => {
+export type StepNodeData = {
+  title: string
+  subtitle: string
+  number: number
+  kind: 'FILE' | 'TERMINAL'
+  executed: boolean
+  next: boolean
+  running: boolean
+}
+
+export type StepFlowNode = Node<StepNodeData, 'step'>
+
+export const StepNode = ({ data, selected }: NodeProps<StepFlowNode>): React.JSX.Element => {
   return (
-    <div className={clsx(
-       "px-4 py-2 shadow-md rounded-md bg-[#1e1e1e] border-2 min-w-[150px] text-center",
-       selected ? "border-blue-500" : "border-[#3e3e42]"
-    )}>
-       <div className="text-xs text-gray-400 font-bold mb-1 uppercase tracking-wider">Step</div>
-       <div className="text-sm font-medium text-white">{data.label as string}</div>
+    <div
+      className={clsx(
+        'w-[190px] rounded-md border-2 bg-ide-panel px-3 py-2 shadow-md transition-colors',
+        selected
+          ? 'border-ide-accent'
+          : data.next
+            ? 'border-sky-700'
+            : data.executed
+              ? 'border-green-800'
+              : 'border-ide-border'
+      )}
+    >
+      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+        {data.kind === 'TERMINAL' ? (
+          <Terminal size={12} className="text-purple-400" />
+        ) : (
+          <FileCode size={12} className="text-sky-400" />
+        )}
+        <span>Passo {data.number}</span>
+        <span className="flex-1" />
+        {data.running ? (
+          <Loader2 size={12} className="animate-spin text-sky-400" />
+        ) : (
+          data.executed && <CheckCircle2 size={12} className="text-green-500" />
+        )}
+      </div>
+      <div className="truncate text-[13px] font-medium text-white" title={data.title}>
+        {data.title}
+      </div>
+      <div className="truncate font-mono text-[10px] text-ide-muted" title={data.subtitle}>
+        {data.subtitle}
+      </div>
 
-       {/* Top */}
-       <Handle type="target" position={Position.Top} id="t" className="w-2 h-2 !bg-blue-500" />
-       
-       {/* Bottom */}
-       <Handle type="source" position={Position.Bottom} id="b" className="w-2 h-2 !bg-blue-500" />
-       
-       {/* Left */}
-       <Handle type="target" position={Position.Left} id="l" className="w-2 h-2 !bg-blue-500" />
-       
-       {/* Right */}
-       <Handle type="source" position={Position.Right} id="r" className="w-2 h-2 !bg-blue-500" />
+      <Handle type="target" position={Position.Left} id="l" className="!h-2.5 !w-2.5 !bg-sky-500" />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="r"
+        className="!h-2.5 !w-2.5 !bg-sky-500"
+      />
     </div>
-  );
-};
+  )
+}

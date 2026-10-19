@@ -1,54 +1,39 @@
-import { useIDEStore, Annotation } from '../../store/useIDEStore';
-import { X, Info, AlertTriangle, AlertCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import clsx from 'clsx';
+import { X, Info, AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Toast, useIDEStore } from '../../store/useIDEStore'
 
-const AnnotationItem = ({ item, onRemove }: { item: Annotation; onRemove: () => void }) => {
-   const [visible, setVisible] = useState(false);
+const ICONS: Record<Toast['type'], React.JSX.Element> = {
+  info: <Info size={18} className="text-sky-400" />,
+  success: <CheckCircle2 size={18} className="text-green-400" />,
+  warning: <AlertTriangle size={18} className="text-yellow-400" />,
+  error: <AlertCircle size={18} className="text-red-400" />
+}
 
-   useEffect(() => {
-     requestAnimationFrame(() => setVisible(true));
-   }, []);
+/** Toast notifications in the bottom right corner. */
+const Toasts = (): React.JSX.Element => {
+  const toasts = useIDEStore((s) => s.toasts)
+  const dismissToast = useIDEStore((s) => s.dismissToast)
 
-   const getIcon = () => {
-      switch(item.type) {
-         case 'error': return <AlertCircle size={20} className="text-red-400" />;
-         case 'warning': return <AlertTriangle size={20} className="text-yellow-400" />;
-         default: return <Info size={20} className="text-blue-400" />;
-      }
-   };
-
-   return (
-      <div className={clsx(
-         "mb-2 p-3 rounded shadow-lg bg-[#252526] border border-[#3e3e42] text-white flex items-start w-80 transition-all duration-300 transform",
-         visible ? "translate-x-0 opacity-100" : "translate-x-10 opacity-0"
-      )}>
-         <span className="mr-3 mt-0.5">{getIcon()}</span>
-         <div className="flex-1 text-sm leading-relaxed">{item.message}</div>
-         <button 
-           onClick={onRemove}
-           className="ml-2 text-gray-400 hover:text-white"
-         >
+  return (
+    <div className="pointer-events-none fixed bottom-8 right-4 z-50 flex flex-col items-end gap-2">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          role="status"
+          className="toast-in pointer-events-auto flex w-96 items-start gap-3 rounded border border-ide-border bg-ide-panel p-3 text-sm text-white shadow-xl"
+        >
+          <span className="mt-0.5 flex-none">{ICONS[toast.type]}</span>
+          <div className="flex-1 break-words leading-relaxed">{toast.message}</div>
+          <button
+            onClick={() => dismissToast(toast.id)}
+            className="flex-none text-gray-400 hover:text-white"
+            title="Fechar"
+          >
             <X size={14} />
-         </button>
-      </div>
-   );
-};
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
 
-const AnnotationBalloon = () => {
-   const { annotations, removeAnnotation } = useIDEStore();
-
-   return (
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end">
-         {annotations.map(ann => (
-            <AnnotationItem 
-               key={ann.id} 
-               item={ann} 
-               onRemove={() => removeAnnotation(ann.id)} 
-            />
-         ))}
-      </div>
-   );
-};
-
-export default AnnotationBalloon;
+export default Toasts

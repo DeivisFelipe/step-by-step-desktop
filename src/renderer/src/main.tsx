@@ -1,3 +1,4 @@
+import './lib/monaco'
 import './assets/main.css'
 import './assets/base.css'
 
