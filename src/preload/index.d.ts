@@ -7,7 +7,8 @@ import type {
   GitFileChange,
   ObsStatus,
   SaveDialogOptions,
-  ServerInfo
+  ServerInfo,
+  UpdateStatus
 } from '../shared/ipc'
 import type {
   AppSettings,
@@ -93,6 +94,12 @@ export interface CustomAPI {
   rehearsalWrite: (dir: string, files: Record<string, string | null>) => Promise<void>
   rehearsalExec: (request: ExecRequest) => Promise<ExecResult>
   rehearsalCleanup: (dir: string) => Promise<void>
+
+  getUpdateStatus: () => Promise<UpdateStatus>
+  checkForUpdates: () => Promise<UpdateStatus>
+  /** Closes the app and installs the downloaded version. */
+  installUpdate: () => void
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
 
   gitLog: (root: string) => Promise<GitCommit[]>
   gitCommitChanges: (root: string, hash: string) => Promise<GitFileChange[]>

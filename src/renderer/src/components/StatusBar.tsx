@@ -1,4 +1,12 @@
-import { AlertCircle, Check, FolderOpen, Loader2, SkipForward, TerminalSquare } from 'lucide-react'
+import {
+  AlertCircle,
+  ArrowDownCircle,
+  Check,
+  FolderOpen,
+  Loader2,
+  SkipForward,
+  TerminalSquare
+} from 'lucide-react'
 import { useFileSystemStore } from '../store/useFileSystemStore'
 import { useIDEStore } from '../store/useIDEStore'
 import { useLessonStore } from '../store/useLessonStore'
@@ -6,6 +14,8 @@ import { usePlayerStore } from '../store/usePlayerStore'
 import { findNode, flattenSteps } from '../lib/tree'
 import { basename } from '../lib/paths'
 import { chooseWorkspace } from '../lib/workspace'
+import { restartToUpdate } from '../lib/updates'
+import { useSettingsStore } from '../store/useSettingsStore'
 
 const item = 'flex h-full items-center gap-1 px-2 hover:bg-white/10'
 
@@ -17,6 +27,7 @@ const StatusBar = (): React.JSX.Element => {
   const history = usePlayerStore((s) => s.history)
   const runningStepId = usePlayerStore((s) => s.runningStepId)
   const terminalVisible = useIDEStore((s) => s.terminalVisible)
+  const updater = useSettingsStore((s) => s.updater)
 
   const total = flattenSteps(tree).length
   const running = runningStepId ? findNode(tree, runningStepId) : null
@@ -46,6 +57,22 @@ const StatusBar = (): React.JSX.Element => {
       )}
 
       <span className="flex-1" />
+
+      {updater?.state === 'downloading' && (
+        <span className="flex items-center gap-1 px-2 opacity-90" title="Atualização sendo baixada">
+          <Loader2 size={12} className="animate-spin" /> Baixando versão {updater.version} (
+          {updater.percent}%)
+        </span>
+      )}
+      {updater?.state === 'ready' && (
+        <button
+          className={`${item} bg-green-600 hover:bg-green-500`}
+          onClick={restartToUpdate}
+          title="Fecha o app, instala a nova versão e abre de novo. Suas aulas e configurações são mantidas."
+        >
+          <ArrowDownCircle size={13} /> Reiniciar para atualizar ({updater.version})
+        </button>
+      )}
 
       {running && (
         <button

@@ -61,6 +61,11 @@ const api: CustomAPI = {
   rehearsalExec: (request) => ipcRenderer.invoke('rehearsal:exec', request),
   rehearsalCleanup: (dir) => ipcRenderer.invoke('rehearsal:cleanup', dir),
 
+  getUpdateStatus: () => ipcRenderer.invoke('updater:status'),
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  installUpdate: () => ipcRenderer.send('updater:install'),
+  onUpdateStatus: (callback) => listen('updater:status', callback),
+
   gitLog: (root) => ipcRenderer.invoke('git:log', root),
   gitCommitChanges: (root, hash) => ipcRenderer.invoke('git:commit-changes', root, hash),
   gitExport: (root, target, steps) => ipcRenderer.invoke('git:export', root, target, steps)

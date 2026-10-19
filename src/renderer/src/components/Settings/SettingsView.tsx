@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import { Copy, Plus, RotateCcw, Trash } from 'lucide-react'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { reportError, useIDEStore } from '../../store/useIDEStore'
+import { restartToUpdate } from '../../lib/updates'
 import {
   Aspect,
   BUILTIN_PRESETS,
@@ -428,6 +429,51 @@ const ObsSection = (): React.JSX.Element => {
   )
 }
 
+const UPDATE_TEXT: Record<string, string> = {
+  disabled: 'atualizações automáticas só funcionam na versão instalada',
+  idle: '',
+  checking: 'procurando atualizações…',
+  none: 'você está na versão mais recente',
+  available: 'nova versão encontrada',
+  downloading: 'baixando a nova versão…',
+  ready: 'nova versão pronta para instalar',
+  error: 'não foi possível verificar'
+}
+
+const VersionRow = (): React.JSX.Element => {
+  const updater = useSettingsStore((s) => s.updater)
+  if (!updater) return <></>
+  return (
+    <Row label="Versão">
+      <span className="tabular-nums text-white">{updater.current}</span>
+      <span className="text-[12px] text-ide-muted">
+        {updater.state === 'downloading'
+          ? `baixando ${updater.version} (${updater.percent}%)`
+          : updater.state === 'ready'
+            ? `versão ${updater.version} pronta para instalar`
+            : updater.state === 'error'
+              ? `${UPDATE_TEXT.error}: ${updater.error ?? ''}`
+              : UPDATE_TEXT[updater.state]}
+      </span>
+      {updater.state === 'ready' ? (
+        <button className="text-[12px] text-green-400 hover:underline" onClick={restartToUpdate}>
+          reiniciar e atualizar
+        </button>
+      ) : (
+        updater.state !== 'disabled' && (
+          <button
+            className="text-[12px] text-sky-400 hover:underline disabled:opacity-50"
+            disabled={updater.state === 'checking' || updater.state === 'downloading'}
+            onClick={() => window.api.checkForUpdates()}
+          >
+            verificar atualizações
+          </button>
+        )
+      )}
+    </Row>
+  )
+}
+
 const GeneralSection = (): React.JSX.Element => {
   const settings = useSettingsStore((s) => s.settings)
   const server = useSettingsStore((s) => s.server)
@@ -435,6 +481,7 @@ const GeneralSection = (): React.JSX.Element => {
 
   return (
     <Section title="Geral">
+      <VersionRow />
       <Row label="Passador de slides">
         <input
           type="checkbox"

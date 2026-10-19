@@ -9,6 +9,7 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{dist,dist-*,docs,.github}/**'
 asarUnpack:
   - resources/**
   - node_modules/node-pty/**
@@ -19,6 +20,8 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  # Settings and lessons survive uninstalls and updates.
+  deleteAppDataOnUninstall: false
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
@@ -39,3 +42,9 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
+# Releases on GitHub; installed apps check them for updates (electron-updater).
+publish:
+  provider: github
+  owner: DeivisFelipe
+  repo: step-by-step-desktop
+  releaseType: release
