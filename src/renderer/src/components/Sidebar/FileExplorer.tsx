@@ -1,233 +1,264 @@
-import { useState } from 'react';
-import { useFileSystemStore } from '../../store/useFileSystemStore';
-import { useIDEStore } from '../../store/useIDEStore';
-import { DndContext, DragEndEvent, useSensors, useSensor, PointerSensor, KeyboardSensor } from '@dnd-kit/core';
-import { FileItem } from './FileItem';
-import { FileExplorerHeader } from './FileExplorerHeader';
-import { FileInput } from './FileInput';
-import clsx from 'clsx';
-import ContextMenu, { ContextMenuItem } from '../UI/ContextMenu';
-import { FilePlus, FolderPlus, RefreshCw } from 'lucide-react';
+import { useState } from 'react'
+import clsx from 'clsx'
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  pointerWithin,
+  useDroppable,
+  useSensor,
+  useSensors
+} from '@dnd-kit/core'
+import { FilePlus, FolderOpen, FolderPlus, ListCollapse, RefreshCw } from 'lucide-react'
+import { FileNode, useFileSystemStore } from '../../store/useFileSystemStore'
+import { reportError } from '../../store/useIDEStore'
+import { basename, dirname, isInside, joinPath, samePath } from '../../lib/paths'
+import { chooseWorkspace, getRecentFolders, openWorkspace } from '../../lib/workspace'
+import ContextMenu, { ContextMenuItem } from '../UI/ContextMenu'
+import { SidebarHeader } from './FileExplorerHeader'
+import { EditingState, FileItem } from './FileItem'
+import { FileInput } from './FileInput'
 
-// Type definitions shared or imported
-interface EditingState {
-  type: 'rename' | 'createFile' | 'createFolder';
-  path: string; 
+function findFileNode(nodes: FileNode[], path: string): FileNode | null {
+  for (const node of nodes) {
+    if (node.path === path) return node
+    if (node.children) {
+      const found = findFileNode(node.children, path)
+      if (found) return found
+    }
+  }
+  return null
 }
 
-const FileExplorer = () => {
-  const { rootPath, setRootPath, loadDir, fileTree, renameNode, createFile, createDirectory, collapseAll } = useFileSystemStore();
-  const { activeFileId, setActiveFileId } = useIDEStore(); 
-  
-  const [isRootFocused, setIsRootFocused] = useState(false);
-  const [editingState, setEditingState] = useState<EditingState | null>(null);
-  const [isRootCreating, setIsRootCreating] = useState<'file' | 'folder' | null>(null);
-  const [rootContextMenuPos, setRootContextMenuPos] = useState<{ x: number, y: number } | null>(null);
+async function confirmDelete(node: FileNode): Promise<void> {
+  const choice = await window.api.showMessage({
+    type: 'warning',
+    message: `Excluir "${node.name}"?`,
+    detail: node.isDirectory
+      ? 'A pasta e todo o seu conteúdo serão excluídos permanentemente.'
+      : 'O arquivo será excluído permanentemente.',
+    buttons: ['Excluir', 'Cancelar'],
+    defaultId: 1,
+    cancelId: 1
+  })
+  if (choice !== 0) return
+  try {
+    await useFileSystemStore.getState().deleteNode(node.path)
+  } catch (e) {
+    reportError(e, 'Não foi possível excluir')
+  }
+}
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor)
-  );
+const NoFolder = (): React.JSX.Element => {
+  const recent = getRecentFolders()
+  return (
+    <div className="space-y-4 px-5 py-3 text-[13px]">
+      <p className="text-gray-400">
+        Nenhuma pasta aberta. Abra a pasta do projeto que será usado na aula.
+      </p>
+      <button
+        onClick={chooseWorkspace}
+        className="w-full rounded bg-ide-accent py-1.5 text-white hover:bg-sky-600"
+      >
+        Abrir pasta
+      </button>
+      {recent.length > 0 && (
+        <div>
+          <div className="mb-1 text-[11px] uppercase tracking-wider text-ide-muted">Recentes</div>
+          {recent.map((path) => (
+            <button
+              key={path}
+              onClick={() => openWorkspace(path)}
+              className="block w-full truncate rounded px-1 py-0.5 text-left text-sky-400 hover:bg-ide-hover"
+              title={path}
+            >
+              {basename(path)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
-  const handleOpenFolder = async () => {
-     const path = await window.api.openFolder();
-     if (path) {
-        setRootPath(path);
-        await loadDir(path);
-     }
-  };
+const FileExplorer = (): React.JSX.Element => {
+  const rootPath = useFileSystemStore((s) => s.rootPath)
+  const fileTree = useFileSystemStore((s) => s.fileTree)
+  const [editing, setEditing] = useState<EditingState | null>(null)
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
 
-  const handleRefresh = async () => {
-    if (rootPath) await loadDir(rootPath);
-  };
-  
-  const handleCollapseAll = () => {
-     collapseAll();
-  };
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const { setNodeRef: setRootDropRef, isOver: isOverRoot } = useDroppable({
+    id: 'drop:__root__',
+    data: { dir: rootPath },
+    disabled: !rootPath
+  })
 
-  const handleRootCreate = (name: string) => {
-     if (!rootPath) return;
-     const sep = rootPath.includes('\\') ? '\\' : '/';
-     const path = `${rootPath}${sep}${name}`;
-     
-     if (isRootCreating === 'file') createFile(path);
-     else createDirectory(path);
-     
-     setIsRootCreating(null);
-  };
+  /** Starts inline creation inside `dir`, expanding it first. */
+  const startCreate = async (dir: string, type: 'createFile' | 'createFolder'): Promise<void> => {
+    const fs = useFileSystemStore.getState()
+    if (rootPath && !samePath(dir, rootPath) && !fs.expanded[dir]) {
+      useFileSystemStore.setState((s) => ({ expanded: { ...s.expanded, [dir]: true } }))
+      await fs.refreshTree()
+    }
+    setEditing({ type, path: dir })
+  }
 
-  // Improved Logic:
-  // "Se tiver um folder selecionado tem que adicionar arquivo/folder a folder selecionada"
-  // "Se não, adicionar ao workspace"
-  const handleHeaderCreateFile = () => {
-     if (activeFileId) {
-        // Find node for activeFileId
-        // If it's a directory, adding to it.
-        // If it's a file, add to its parent.
-        const node = findNode(fileTree, activeFileId);
-        if (node) {
-           if (node.isDirectory) {
-               // Add to this folder
-               // We need to trigger "inline create" on that FileItem.
-               // But state is local to FileItem... 
-               // We lifted state `editingState` which has `{ type, path }`.
-               // So we can set editingState globally!
-               setEditingState({ type: 'createFile', path: node.path });
-               return; // Done
-           } else {
-               // Sibling
-               const parentPath = node.path.replace(/[\\/][^\\/]+$/, '');
-               // If parent is root?
-               if (parentPath === rootPath) {
-                   setIsRootCreating('file');
-               } else {
-                   setEditingState({ type: 'createFile', path: parentPath });
-               }
-               return;
-           }
-        }
-     }
-     // Fallback to root
-     setIsRootCreating('file');
-  };
+  /** Directory where header actions create things: the selected folder, or the selection's folder. */
+  const targetDir = (): string | null => {
+    const { selectedPath } = useFileSystemStore.getState()
+    if (!rootPath) return null
+    if (!selectedPath) return rootPath
+    const node = findFileNode(fileTree, selectedPath)
+    if (!node) return rootPath
+    return node.isDirectory ? node.path : dirname(node.path)
+  }
 
-  const handleHeaderCreateFolder = () => {
-     if (activeFileId) {
-        const node = findNode(fileTree, activeFileId);
-        if (node) {
-           if (node.isDirectory) {
-               setEditingState({ type: 'createFolder', path: node.path });
-               return;
-           } else {
-               const parentPath = node.path.replace(/[\\/][^\\/]+$/, '');
-               if (parentPath === rootPath) {
-                   setIsRootCreating('folder');
-               } else {
-                   setEditingState({ type: 'createFolder', path: parentPath });
-               }
-               return;
-           }
-        }
-     }
-     setIsRootCreating('folder');
-  };
+  const createFromHeader = (type: 'createFile' | 'createFolder'): void => {
+    const dir = targetDir()
+    if (dir) startCreate(dir, type)
+  }
 
-  // Helper to find node
-  const findNode = (nodes: import('../../store/useFileSystemStore').FileNode[], path: string): import('../../store/useFileSystemStore').FileNode | null => {
-      for (const node of nodes) {
-          if (node.path === path) return node;
-          if (node.children) {
-              const found = findNode(node.children, path);
-              if (found) return found;
-          }
-      }
-      return null;
-  };
+  const handleRootCreate = async (name: string): Promise<void> => {
+    if (!rootPath || !editing) return
+    const type = editing.type
+    setEditing(null)
+    try {
+      const target = joinPath(rootPath, name)
+      if (type === 'createFolder') await useFileSystemStore.getState().createDirectory(target)
+      else await useFileSystemStore.getState().createFile(target)
+    } catch (e) {
+      reportError(e, 'Não foi possível criar')
+    }
+  }
 
-  const handleBackgroundClick = (e: React.MouseEvent) => {
-     e.stopPropagation();
-     setIsRootFocused(true);
-     // If clicking empty space, clear selection? Or keep focus on root?
-     // " Tem que selecionar a raiz"
-     setActiveFileId(null); 
-  };
-  
-  const handleRootContextMenu = (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setRootContextMenuPos({ x: e.clientX, y: e.clientY });
-  };
+  const handleDragEnd = async (event: DragEndEvent): Promise<void> => {
+    const { active, over } = event
+    if (!over) return
+    const from = String(active.id)
+    const toDir = over.data.current?.dir as string | undefined
+    if (!toDir || isInside(toDir, from) || samePath(dirname(from), toDir)) return
+    try {
+      await useFileSystemStore.getState().renameNode(from, joinPath(toDir, basename(from)))
+    } catch (e) {
+      reportError(e, 'Não foi possível mover')
+    }
+  }
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    // ... same ...
-    const { active, over } = event;
-    if (!over) return;
-    if (active.id === over.id) return;
-    const activePath = active.id as string;
-    const overPath = over.id as string;
-    if (overPath.startsWith(activePath)) return;
-    const name = activePath.split(/[\\/]/).pop();
-    const sep = overPath.indexOf('\\') !== -1 ? '\\' : '/'; 
-    const newPath = `${overPath}${sep}${name}`;
-    if (newPath === activePath) return;
-    await renameNode(activePath, newPath);
-  };
+  const handleKeyDown = (e: React.KeyboardEvent): void => {
+    const { selectedPath } = useFileSystemStore.getState()
+    if (!selectedPath || editing) return
+    const node = findFileNode(fileTree, selectedPath)
+    if (!node) return
+    if (e.key === 'F2') {
+      e.preventDefault()
+      setEditing({ type: 'rename', path: node.path })
+    } else if (e.key === 'Delete') {
+      e.preventDefault()
+      confirmDelete(node)
+    }
+  }
 
-  const rootMenuItems: ContextMenuItem[] = [
-      { label: 'New File', icon: FilePlus, action: () => setIsRootCreating('file') },
-      { label: 'New Folder', icon: FolderPlus, action: () => setIsRootCreating('folder') },
-      { label: 'Refresh', icon: RefreshCw, action: handleRefresh },
-  ];
+  const rootMenu: ContextMenuItem[] = [
+    {
+      label: 'Novo arquivo',
+      icon: FilePlus,
+      action: () => rootPath && startCreate(rootPath, 'createFile')
+    },
+    {
+      label: 'Nova pasta',
+      icon: FolderPlus,
+      action: () => rootPath && startCreate(rootPath, 'createFolder')
+    },
+    {
+      label: 'Atualizar',
+      icon: RefreshCw,
+      separator: true,
+      action: () => useFileSystemStore.getState().refreshTree()
+    }
+  ]
 
   return (
-    <div className="h-full flex flex-col bg-[#252526] text-[#cccccc]" onClick={() => setIsRootFocused(false)}>
-       <FileExplorerHeader 
-          workspaceName={rootPath ? rootPath.split(/[\\/]/).pop() || 'WORKSPACE' : ''}
-          onNewFile={handleHeaderCreateFile}
-          onNewFolder={handleHeaderCreateFolder}
-          onRefresh={handleRefresh}
-          onCollapseAll={handleCollapseAll}
-       />
-       
-       <div 
-         className={clsx(
-           "flex-1 overflow-y-auto relative outline-none",
-           isRootFocused && "ring-1 ring-blue-500 ring-inset" // Use ring to avoid layout shift
-         )}
-         onClick={handleBackgroundClick}
-         onContextMenu={rootPath ? handleRootContextMenu : undefined}
-         tabIndex={0}
-         onFocus={() => setIsRootFocused(true)}
-         onBlur={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget)) {
-               setIsRootFocused(false);
-            }
-         }}
-       >
-          {!rootPath ? (
-             <div className="p-4 text-center">
-                <p className="text-sm mb-4">No folder opened.</p>
-                <button 
-                  onClick={handleOpenFolder}
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm"
-                >
-                  Open Folder
-                </button>
-             </div>
-          ) : (
-             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-                <div className="pb-4 relative">
-                   {/* Root Level Creation */}
-                   {isRootCreating && (
-                      <FileInput 
-                         type={isRootCreating}
-                         depth={0}
-                         onSubmit={handleRootCreate}
-                         onCancel={() => setIsRootCreating(null)}
-                      />
-                   )}
+    <div className="flex h-full flex-col">
+      <SidebarHeader
+        title={rootPath ? basename(rootPath) : 'Explorador'}
+        actions={
+          rootPath
+            ? [
+                {
+                  icon: FilePlus,
+                  title: 'Novo arquivo',
+                  onClick: () => createFromHeader('createFile')
+                },
+                {
+                  icon: FolderPlus,
+                  title: 'Nova pasta',
+                  onClick: () => createFromHeader('createFolder')
+                },
+                {
+                  icon: RefreshCw,
+                  title: 'Atualizar',
+                  onClick: () => useFileSystemStore.getState().refreshTree()
+                },
+                {
+                  icon: ListCollapse,
+                  title: 'Recolher pastas',
+                  onClick: () => useFileSystemStore.getState().collapseAll()
+                },
+                { icon: FolderOpen, title: 'Abrir outra pasta (Ctrl+O)', onClick: chooseWorkspace }
+              ]
+            : []
+        }
+      />
 
-                   {fileTree.map(node => (
-                      <FileItem 
-                         key={node.path} 
-                         node={node} 
-                         depth={0} 
-                         editingState={editingState}
-                         setEditingState={setEditingState}
-                      />
-                   ))}
-                </div>
-             </DndContext>
-          )}
-          
-          <ContextMenu 
-            position={rootContextMenuPos} 
-            items={rootMenuItems} 
-            onClose={() => setRootContextMenuPos(null)} 
-          />
-       </div>
+      {!rootPath ? (
+        <NoFolder />
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={handleDragEnd}>
+          <div
+            ref={setRootDropRef}
+            role="tree"
+            tabIndex={0}
+            className={clsx(
+              'flex-1 overflow-y-auto pb-6 outline-none',
+              isOverRoot && 'bg-ide-select/20'
+            )}
+            onKeyDown={handleKeyDown}
+            onClick={() => useFileSystemStore.getState().select(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setMenuPos({ x: e.clientX, y: e.clientY })
+            }}
+          >
+            {editing && editing.type !== 'rename' && samePath(editing.path, rootPath) && (
+              <FileInput
+                type={editing.type === 'createFolder' ? 'folder' : 'file'}
+                depth={0}
+                onSubmit={handleRootCreate}
+                onCancel={() => setEditing(null)}
+              />
+            )}
+            {fileTree.map((node) => (
+              <FileItem
+                key={node.path}
+                node={node}
+                depth={0}
+                editing={editing}
+                setEditing={setEditing}
+                onCreateIn={startCreate}
+                onDelete={confirmDelete}
+              />
+            ))}
+            {fileTree.length === 0 && !editing && (
+              <p className="px-5 py-2 text-[13px] text-ide-muted">A pasta está vazia.</p>
+            )}
+          </div>
+        </DndContext>
+      )}
+
+      <ContextMenu position={menuPos} items={rootMenu} onClose={() => setMenuPos(null)} />
     </div>
-  );
-};
+  )
+}
 
-export default FileExplorer;
+export default FileExplorer

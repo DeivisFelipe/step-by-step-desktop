@@ -1,246 +1,264 @@
-import { create } from 'zustand';
-import { LessonNode } from '../types/schema';
-import { v4 as uuidv4 } from 'uuid';
+import { create } from 'zustand'
+import { ActionType, LessonFile, LessonNode, NodeType, StepData } from '../types/schema'
+import {
+  cloneWithNewIds,
+  collectIds,
+  defaultAction,
+  findNode,
+  insertNode,
+  mapNode,
+  newId,
+  removeNode,
+  siblingsOf
+} from '../lib/tree'
+import { joinPath } from '../lib/paths'
+import { reportError, useIDEStore } from './useIDEStore'
 
-interface LessonStore {
-  tree: LessonNode[];
-  selectedNodeId: string | null;
-  
-  // Actions
-  setTree: (tree: LessonNode[]) => void;
-  addNode: (parentId: string | null, type: 'FLOW' | 'STEP', title?: string) => void;
-  updateNode: (id: string, updates: Partial<LessonNode>) => void;
-  removeNode: (id: string) => void;
-  selectNode: (id: string | null) => void;
-  moveNode: (activeId: string, overId: string) => void;
-  moveNodeToFront: (id: string, parentId: string) => void;
-  reorderNode: (id: string, direction: 'up' | 'down') => void;
-  lastExecutedStepId: string | null;
-  setLastExecutedStepId: (id: string | null) => void;
+export const LESSON_DIR = '.stepbystep'
+export const LESSON_FILE = 'lesson.json'
+
+export function lessonFilePath(root: string): string {
+  return joinPath(root, LESSON_DIR, LESSON_FILE)
 }
 
-const INITIAL_TREE: LessonNode[] = [
-  {
-    id: 'root-flow',
-    parentId: null,
-    type: 'FLOW',
-    title: 'Welcome to CodeLesson',
-    isExpanded: true,
-    children: []
-  }
-];
+function initialTree(): LessonNode[] {
+  return [
+    { id: newId(), parentId: null, type: 'FLOW', title: 'Aula 1', isExpanded: true, children: [] }
+  ]
+}
 
-export const useLessonStore = create<LessonStore>((set, _get) => ({
-  tree: INITIAL_TREE,
+interface LessonStore {
+  tree: LessonNode[]
+  selectedNodeId: string | null
+  /** Workspace whose lesson file is loaded; changes are auto-saved there. */
+  workspace: string | null
+  saveState: 'saved' | 'saving' | 'error'
+
+  loadForWorkspace: (root: string) => Promise<void>
+  selectNode: (id: string | null) => void
+
+  /**
+   * Adds a node next to the given reference: inside it when it is a flow,
+   * after it when it is a step. Returns the new node id.
+   */
+  addNode: (type: NodeType, referenceId: string | null, title?: string) => string
+  updateNode: (id: string, updates: Partial<Pick<LessonNode, 'title' | 'isExpanded'>>) => void
+  updateStepData: (id: string, data: Partial<StepData>) => void
+  updateAction: (id: string, action: Partial<ActionType>) => void
+  setActionKind: (id: string, kind: ActionType['kind']) => void
+  removeNode: (id: string) => void
+  duplicateNode: (id: string) => void
+
+  /** Drag & drop in the outline: puts `activeId` where `overId` is. */
+  moveNode: (activeId: string, overId: string) => void
+  reorderNode: (id: string, direction: 'up' | 'down') => void
+  /** Flow editor connections: `id` goes right after `referenceId`. */
+  placeAfter: (id: string, referenceId: string) => void
+  placeFirst: (id: string, parentId: string) => void
+}
+
+export const useLessonStore = create<LessonStore>((set, get) => ({
+  tree: initialTree(),
   selectedNodeId: null,
-  lastExecutedStepId: null,
+  workspace: null,
+  saveState: 'saved',
 
-  setTree: (tree) => set({ tree }),
-  setLastExecutedStepId: (id) => set({ lastExecutedStepId: id }),
-
-  addNode: (parentId, type, title) => {
-    // Enforce Flow Constraint: Flow cannot be inside a Flow (so parentId must be null for FLOW)
-    if (type === 'FLOW' && parentId !== null) {
-       console.warn("Cannot create a Flow inside another Flow");
-       return;
-    }
-
-    const newNode: LessonNode = {
-      id: uuidv4(),
-      parentId,
-      type,
-      title: title || (type === 'FLOW' ? 'New Flow' : 'New Step'),
-      children: type === 'FLOW' ? [] : undefined,
-      isExpanded: true,
-      data: type === 'STEP' ? {
-        enableSnapshot: false,
-        action: {
-          kind: 'FILE',
-          targetMode: 'ACTIVE_FILE',
-          operation: 'APPEND',
-          content: '// Code here',
-          config: { typingAnimation: true }
-        }
-      } : undefined
-    };
-
-    set((state) => {
-      // Helper to traverse and add
-      const addChild = (nodes: LessonNode[]): LessonNode[] => {
-        return nodes.map(node => {
-          if (node.id === parentId) {
-            return {
-              ...node,
-              children: [...(node.children || []), newNode],
-              isExpanded: true
-            };
-          }
-          if (node.children) {
-            return { ...node, children: addChild(node.children) };
-          }
-          return node;
-        });
-      };
-      
-      if (parentId === null) {
-        return { tree: [...state.tree, newNode] };
+  loadForWorkspace: async (root) => {
+    await flushLessonSave()
+    let tree: LessonNode[] | null = null
+    const raw = await window.api.readFile(lessonFilePath(root))
+    if (raw !== null) {
+      try {
+        const parsed = JSON.parse(raw) as LessonFile
+        if (Array.isArray(parsed.tree)) tree = parsed.tree
+      } catch (e) {
+        reportError(e, 'Arquivo da aula inválido')
       }
-      
-      return { tree: addChild(state.tree) };
-    });
-  },
-
-  updateNode: (id, updates) => {
-    set((state) => {
-      const updateRecursive = (nodes: LessonNode[]): LessonNode[] => {
-        return nodes.map(node => {
-          if (node.id === id) {
-             // If updating data, merge it cautiously
-             const newData = (updates.data && node.data) 
-                ? { ...node.data, ...updates.data } 
-                : updates.data || node.data;
-             
-             return { ...node, ...updates, data: newData };
-          }
-          if (node.children) {
-            return { ...node, children: updateRecursive(node.children) };
-          }
-          return node;
-        });
-      };
-      return { tree: updateRecursive(state.tree) };
-    });
-  },
-
-  removeNode: (id) => {
-    set((state) => {
-       const removeRecursive = (nodes: LessonNode[]): LessonNode[] => {
-         return nodes.filter(node => node.id !== id).map(node => {
-           if (node.children) {
-             return { ...node, children: removeRecursive(node.children) };
-           }
-           return node;
-         });
-       };
-       return { tree: removeRecursive(state.tree) };
-    });
+    }
+    set({ tree: tree ?? initialTree(), selectedNodeId: null, workspace: root, saveState: 'saved' })
   },
 
   selectNode: (id) => set({ selectedNodeId: id }),
 
-  moveNode: (activeId, overId) => {
-    // Keep legacy D&D logic for internal reordering if needed, or remove?
-    // Maintaining it for now as "legacy" or if we add D&D back later.
-    set((state) => {
-      const newTree = JSON.parse(JSON.stringify(state.tree));
-      let activeNode: LessonNode | null = null;
-      const removeNode = (nodes: LessonNode[], id: string): LessonNode[] => {
-        const filtered: LessonNode[] = [];
-        for (const node of nodes) {
-          if (node.id === id) {
-            activeNode = node;
-            continue;
-          }
-          if (node.children) {
-            node.children = removeNode(node.children, id);
-          }
-          filtered.push(node);
-        }
-        return filtered;
-      };
-      const treeWithoutActive = removeNode(newTree, activeId);
-      if (!activeNode) return state;
-      const insertNode = (nodes: LessonNode[], id: string, nodeToInsert: LessonNode): boolean => {
-         for (let i = 0; i < nodes.length; i++) {
-            if (nodes[i].id === id) {
-               nodes.splice(i + 1, 0, nodeToInsert);
-               return true;
-            }
-            if (nodes[i].children) {
-               if (insertNode(nodes[i].children!, id, nodeToInsert)) return true;
-            }
-         }
-         return false;
-      };
-      insertNode(treeWithoutActive, overId, activeNode);
-      return { tree: treeWithoutActive };
-    });
+  addNode: (type, referenceId, title) => {
+    const node: LessonNode = {
+      id: newId(),
+      parentId: null,
+      type,
+      title: title || (type === 'FLOW' ? 'Novo fluxo' : 'Novo passo'),
+      isExpanded: true,
+      children: type === 'FLOW' ? [] : undefined,
+      data: type === 'STEP' ? { action: defaultAction('FILE') } : undefined
+    }
+
+    const { tree } = get()
+    const reference = referenceId ? findNode(tree, referenceId) : null
+    let parentId: string | null = null
+    let index = tree.length
+
+    if (type === 'FLOW') {
+      // Flows only live at the root, after the reference's top-level ancestor.
+      let top = reference
+      while (top?.parentId) top = findNode(tree, top.parentId)
+      if (top) index = tree.findIndex((n) => n.id === top!.id) + 1
+    } else if (reference?.type === 'FLOW') {
+      parentId = reference.id
+      index = reference.children?.length ?? 0
+    } else if (reference) {
+      parentId = reference.parentId
+      index = siblingsOf(tree, parentId).findIndex((n) => n.id === reference.id) + 1
+    }
+
+    set({ tree: insertNode(tree, parentId, index, node), selectedNodeId: node.id })
+    return node.id
   },
 
-  moveNodeToFront: (id, parentId) => {
-    set((state) => {
-        const newTree = JSON.parse(JSON.stringify(state.tree));
-        let activeNode: LessonNode | null = null;
-        
-        // 1. Remove
-        const removeNode = (nodes: LessonNode[]): LessonNode[] => {
-            const filtered: LessonNode[] = [];
-            for (const node of nodes) {
-                if (node.id === id) {
-                    activeNode = node;
-                    continue;
-                }
-                if (node.children) {
-                    node.children = removeNode(node.children);
-                }
-                filtered.push(node);
-            }
-            return filtered;
-        };
-        const treeClean = removeNode(newTree);
-        
-        if (!activeNode) return state;
+  updateNode: (id, updates) => {
+    set((state) => ({ tree: mapNode(state.tree, id, (node) => ({ ...node, ...updates })) }))
+  },
 
-        // 2. Insert at front of parent
-        const insertAtFront = (nodes: LessonNode[]): boolean => {
-             for (const node of nodes) {
-                 if (node.id === parentId) {
-                     node.children = [activeNode!, ...(node.children || [])];
-                     return true;
-                 }
-                 if (node.children && insertAtFront(node.children)) return true;
-             }
-             return false;
-        };
-        
-        // Special case: parent is null (root level)? 
-        if (parentId === null) {
-             // Not supported for clean tree replacement here easily handled by logic above? 
-             // Logic above works on 'nodes' array.
-             // If parentId is null, we insert at root array?
-             // But usually we are inside a flow.
-             // Assume parentId is valid Flow ID.
-        } else {
-             insertAtFront(treeClean);
-        }
-        
-        return { tree: treeClean };
-    });
+  updateStepData: (id, data) => {
+    set((state) => ({
+      tree: mapNode(state.tree, id, (node) =>
+        node.data ? { ...node, data: { ...node.data, ...data } } : node
+      )
+    }))
+  },
+
+  updateAction: (id, action) => {
+    set((state) => ({
+      tree: mapNode(state.tree, id, (node) =>
+        node.data
+          ? {
+              ...node,
+              data: { ...node.data, action: { ...node.data.action, ...action } as ActionType }
+            }
+          : node
+      )
+    }))
+  },
+
+  setActionKind: (id, kind) => {
+    set((state) => ({
+      tree: mapNode(state.tree, id, (node) =>
+        node.data && node.data.action.kind !== kind
+          ? { ...node, data: { ...node.data, action: defaultAction(kind) } }
+          : node
+      )
+    }))
+  },
+
+  removeNode: (id) => {
+    const target = findNode(get().tree, id)
+    if (!target) return
+    const ids = collectIds(target)
+    set((state) => ({
+      tree: removeNode(state.tree, id).tree,
+      selectedNodeId:
+        state.selectedNodeId && ids.includes(state.selectedNodeId) ? null : state.selectedNodeId
+    }))
+    useIDEStore.getState().closeNodeTabs(ids)
+  },
+
+  duplicateNode: (id) => {
+    const { tree } = get()
+    const node = findNode(tree, id)
+    if (!node) return
+    const copy = cloneWithNewIds(node, node.parentId)
+    copy.title = `${node.title} (cópia)`
+    const index = siblingsOf(tree, node.parentId).findIndex((n) => n.id === id) + 1
+    set({ tree: insertNode(tree, node.parentId, index, copy), selectedNodeId: copy.id })
+  },
+
+  moveNode: (activeId, overId) => {
+    const { tree } = get()
+    const active = findNode(tree, activeId)
+    let over = findNode(tree, overId)
+    if (!active || !over || activeId === overId) return
+
+    if (active.type === 'FLOW') {
+      // Flows are reordered among the top-level nodes only.
+      while (over.parentId) over = findNode(tree, over.parentId)!
+      if (over.id === activeId) return
+    }
+
+    const oldSiblings = siblingsOf(tree, active.parentId)
+    const oldIndex = oldSiblings.findIndex((n) => n.id === activeId)
+    const { tree: without } = removeNode(tree, activeId)
+
+    // Dropping a step on a flow header moves it to the start of that flow.
+    if (active.type === 'STEP' && over.type === 'FLOW' && over.id !== active.parentId) {
+      set({ tree: insertNode(without, over.id, 0, active) })
+      return
+    }
+
+    const targetParent = active.type === 'FLOW' ? null : over.parentId
+    const overIndex = siblingsOf(without, targetParent).findIndex((n) => n.id === over!.id)
+    const overOldIndex = siblingsOf(tree, targetParent).findIndex((n) => n.id === over!.id)
+    // Same list and moving down: land after the target, like arrayMove.
+    const after = targetParent === active.parentId && oldIndex < overOldIndex
+    set({ tree: insertNode(without, targetParent, overIndex + (after ? 1 : 0), active) })
   },
 
   reorderNode: (id, direction) => {
-    set((state) => {
-       const reorderRecursive = (nodes: LessonNode[]): LessonNode[] => {
-          const index = nodes.findIndex(n => n.id === id);
-          if (index !== -1) {
-             const newNodes = [...nodes];
-             if (direction === 'up' && index > 0) {
-                [newNodes[index - 1], newNodes[index]] = [newNodes[index], newNodes[index - 1]];
-             } else if (direction === 'down' && index < newNodes.length - 1) {
-                [newNodes[index], newNodes[index + 1]] = [newNodes[index + 1], newNodes[index]];
-             }
-             return newNodes;
-          }
-          // recurse
-          return nodes.map(node => {
-             if (node.children) {
-                return { ...node, children: reorderRecursive(node.children) };
-             }
-             return node;
-          });
-       };
+    const { tree } = get()
+    const node = findNode(tree, id)
+    if (!node) return
+    const siblings = siblingsOf(tree, node.parentId)
+    const index = siblings.findIndex((n) => n.id === id)
+    const target = direction === 'up' ? index - 1 : index + 1
+    if (target < 0 || target >= siblings.length) return
+    const { tree: without } = removeNode(tree, id)
+    set({ tree: insertNode(without, node.parentId, target, node) })
+  },
 
-       return { tree: reorderRecursive(state.tree) };
-    });
+  placeAfter: (id, referenceId) => {
+    const { tree } = get()
+    const node = findNode(tree, id)
+    const reference = findNode(tree, referenceId)
+    if (!node || !reference || id === referenceId) return
+    const { tree: without } = removeNode(tree, id)
+    const index = siblingsOf(without, reference.parentId).findIndex((n) => n.id === referenceId)
+    set({ tree: insertNode(without, reference.parentId, index + 1, node) })
+  },
+
+  placeFirst: (id, parentId) => {
+    const { tree } = get()
+    const node = findNode(tree, id)
+    if (!node) return
+    const { tree: without } = removeNode(tree, id)
+    set({ tree: insertNode(without, parentId, 0, node) })
   }
-}));
+}))
+
+// --- Auto-save -------------------------------------------------------------
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+async function saveLesson(): Promise<void> {
+  const { workspace, tree } = useLessonStore.getState()
+  if (!workspace) return
+  const file: LessonFile = { version: 1, tree }
+  try {
+    await window.api.writeFile(lessonFilePath(workspace), JSON.stringify(file, null, 2) + '\n')
+    if (useLessonStore.getState().tree === tree) useLessonStore.setState({ saveState: 'saved' })
+  } catch (e) {
+    useLessonStore.setState({ saveState: 'error' })
+    reportError(e, 'Não foi possível salvar a aula')
+  }
+}
+
+/** Writes any pending change right away (before switching workspaces or closing). */
+export async function flushLessonSave(): Promise<void> {
+  if (!saveTimer) return
+  clearTimeout(saveTimer)
+  saveTimer = null
+  await saveLesson()
+}
+
+useLessonStore.subscribe((state, prev) => {
+  if (state.tree === prev.tree || !state.workspace || state.workspace !== prev.workspace) return
+  useLessonStore.setState({ saveState: 'saving' })
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(saveLesson, 400)
+})

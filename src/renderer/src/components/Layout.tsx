@@ -1,56 +1,121 @@
-import { useState, useEffect } from 'react';
-import ActivityBar from './Sidebar/ActivityBar';
-import SidebarContainer from './Sidebar/SidebarContainer';
-import MainEditor from './Editor/MainEditor';
-import TerminalView from './Terminal/TerminalView';
-import AnnotationBalloon from './UI/AnnotationBalloon';
-// import ConfigBalloon from './Inspector/ConfigBalloon';
+import { useEffect } from 'react'
+import ActivityBar from './Sidebar/ActivityBar'
+import SidebarContainer from './Sidebar/SidebarContainer'
+import MainEditor from './Editor/MainEditor'
+import TerminalPanel from './Terminal/TerminalView'
+import Toasts from './UI/AnnotationBalloon'
+import PromptDialog from './UI/PromptDialog'
+import Splitter from './UI/Splitter'
+import StatusBar from './StatusBar'
+import { reportError, useIDEStore } from '../store/useIDEStore'
+import { useFileSystemStore } from '../store/useFileSystemStore'
+import { usePlayerStore } from '../store/usePlayerStore'
+import { chooseWorkspace, confirmUnsavedChanges } from '../lib/workspace'
+import { flushLessonSave } from '../store/useLessonStore'
 
-const Layout = () => {
-  const [shells, setShells] = useState<string[]>([]);
-  const [selectedShell, setSelectedShell] = useState<string>('');
+function useGlobalShortcuts(): void {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      const ide = useIDEStore.getState()
+      const player = usePlayerStore.getState()
+      const ctrl = e.ctrlKey || e.metaKey
+      const key = e.key.toLowerCase()
+      let handled = true
+
+      if (e.key === 'F8' && !e.shiftKey) player.runNext()
+      else if (e.key === 'F8' && e.shiftKey) player.undoLast()
+      else if (e.key === 'Escape' && player.runningStepId) player.skip()
+      else if (ctrl && key === 's') {
+        const path = ide.activeFilePath()
+        if (path) {
+          useFileSystemStore
+            .getState()
+            .saveFile(path)
+            .catch((err) => reportError(err, 'Não foi possível salvar'))
+        }
+      } else if (ctrl && key === 'o') chooseWorkspace()
+      else if (ctrl && key === 'b') ide.toggleSidebar()
+      else if (ctrl && (key === 'j' || e.key === '`' || e.code === 'Backquote'))
+        ide.setTerminalVisible(!ide.terminalVisible)
+      else if (ctrl && key === 'w' && ide.activeTabId) ide.closeTab(ide.activeTabId)
+      else handled = false
+
+      if (handled) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+
+    // Capture phase so Monaco and xterm don't swallow the shortcuts first.
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [])
 
   useEffect(() => {
-     window.api.getAvailableShells().then(available => {
-        setShells(available);
-        if (available.length > 0) setSelectedShell(available[0]);
-     });
-  }, []);
+    const onBeforeUnload = (e: BeforeUnloadEvent): void => {
+      flushLessonSave()
+      const { files } = useFileSystemStore.getState()
+      if (Object.values(files).some((f) => f.content !== f.savedContent)) {
+        e.preventDefault()
+        // Ask asynchronously, then close for real.
+        confirmUnsavedChanges().then((ok) => {
+          if (ok) {
+            for (const path of Object.keys(useFileSystemStore.getState().files)) {
+              useFileSystemStore.getState().forgetFile(path)
+            }
+            window.close()
+          }
+        })
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
+}
+
+const Layout = (): React.JSX.Element => {
+  const sidebarVisible = useIDEStore((s) => s.sidebarVisible)
+  const sidebarWidth = useIDEStore((s) => s.sidebarWidth)
+  const setSidebarWidth = useIDEStore((s) => s.setSidebarWidth)
+  const terminalVisible = useIDEStore((s) => s.terminalVisible)
+  const terminalHeight = useIDEStore((s) => s.terminalHeight)
+  const setTerminalHeight = useIDEStore((s) => s.setTerminalHeight)
+
+  useGlobalShortcuts()
 
   return (
-    <div className="flex h-screen bg-[#1e1e1e] text-white overflow-hidden relative">
-      <ActivityBar />
-      <SidebarContainer />
-      <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 min-h-0 relative">
-             <MainEditor />
-             {/* <ConfigBalloon /> */}
-             <AnnotationBalloon />
+    <div className="flex h-screen flex-col overflow-hidden bg-ide-bg text-ide-text">
+      <div className="flex min-h-0 flex-1">
+        <ActivityBar />
+        {sidebarVisible && (
+          <>
+            <div className="flex-none overflow-hidden" style={{ width: sidebarWidth }}>
+              <SidebarContainer />
+            </div>
+            <Splitter axis="x" size={sidebarWidth} onResize={setSidebarWidth} />
+          </>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative min-h-0 flex-1">
+            <MainEditor />
           </div>
-          
-          {/* Terminal Area */}
-          <div className="h-48 border-t border-[#3e3e42] flex flex-col bg-[#1e1e1e]">
-             <div className="bg-[#252526] px-2 py-1 text-xs uppercase font-semibold border-b border-[#3e3e42] flex justify-between items-center">
-                <span>Terminal</span>
-                <select 
-                   className="bg-[#3c3c3c] text-white text-xs border border-[#3e3e42] rounded px-2 py-0.5 outline-none"
-                   value={selectedShell}
-                   onChange={e => setSelectedShell(e.target.value)}
-                >
-                   {shells.map(s => (
-                      <option key={s} value={s}>
-                         {s.split('\\').pop()?.split('/').pop()}
-                      </option>
-                   ))}
-                </select>
-             </div>
-             <div className="flex-1 min-h-0 relative">
-                <TerminalView shell={selectedShell} />
-             </div>
+          {terminalVisible && (
+            <Splitter axis="y" size={terminalHeight} onResize={setTerminalHeight} invert />
+          )}
+          {/* Kept mounted while hidden so the shell session survives. */}
+          <div
+            className={terminalVisible ? 'flex-none' : 'hidden'}
+            style={{ height: terminalHeight }}
+          >
+            <TerminalPanel />
           </div>
+        </div>
       </div>
+      <StatusBar />
+      <Toasts />
+      <PromptDialog />
     </div>
-  );
-};
+  )
+}
 
-export default Layout;
+export default Layout

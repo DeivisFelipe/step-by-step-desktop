@@ -1,13 +1,18 @@
-import { IDEProvider } from './context/IDEContext';
-import Layout from './components/Layout';
-import './assets/main.css';
+import { useEffect } from 'react'
+import Layout from './components/Layout'
+import { restoreLastWorkspace } from './lib/workspace'
+
+let restored = false
 
 function App(): React.JSX.Element {
-  return (
-    <IDEProvider>
-      <Layout />
-    </IDEProvider>
-  )
+  useEffect(() => {
+    // Guard against StrictMode running the effect twice in development.
+    if (restored) return
+    restored = true
+    restoreLastWorkspace()
+  }, [])
+
+  return <Layout />
 }
 
 export default App

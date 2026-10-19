@@ -1,197 +1,214 @@
-import { useState } from 'react';
-import { useFileSystemStore, FileNode } from '../../store/useFileSystemStore';
-import { useIDEStore } from '../../store/useIDEStore';
-import { ChevronRight, ChevronDown, FilePlus, FolderPlus, Edit, Trash } from 'lucide-react';
-import clsx from 'clsx';
-import ContextMenu, { ContextMenuItem } from '../UI/ContextMenu';
-import { FileIcon } from '../UI/FileIcon';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
-import { FileInput } from './FileInput';
+import { useState } from 'react'
+import clsx from 'clsx'
+import { ChevronRight, Copy, Edit, ExternalLink, FilePlus, FolderPlus, Trash } from 'lucide-react'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
+import { FileNode, useFileSystemStore } from '../../store/useFileSystemStore'
+import { reportError, useIDEStore } from '../../store/useIDEStore'
+import ContextMenu, { ContextMenuItem } from '../UI/ContextMenu'
+import { FileIcon } from '../UI/FileIcon'
+import { FileInput } from './FileInput'
+import { dirname, joinPath, relativeTo } from '../../lib/paths'
 
-interface EditingState {
-  type: 'rename' | 'createFile' | 'createFolder';
-  path: string; // Node path where action is happening (parent for create, self for rename)
+export interface EditingState {
+  type: 'rename' | 'createFile' | 'createFolder'
+  /** Node being renamed, or the directory where the new item goes. */
+  path: string
 }
 
 interface FileItemProps {
-  node: FileNode;
-  depth: number;
-  editingState: EditingState | null;
-  setEditingState: (state: EditingState | null) => void;
-  // Passing these down to avoid excessive store subscriptions if needed, 
-  // but getting from store directly is fine.
+  node: FileNode
+  depth: number
+  editing: EditingState | null
+  setEditing: (state: EditingState | null) => void
+  onCreateIn: (dir: string, type: 'createFile' | 'createFolder') => void
+  onDelete: (node: FileNode) => void
 }
 
-export const FileItem = ({ node, depth, editingState, setEditingState }: FileItemProps) => {
-  const { openFile, toggleDirectory, loadDir, createFile, createDirectory, renameNode, deleteNode } = useFileSystemStore();
-  const { activeFileId, activeTabId, openTab } = useIDEStore(); // activeTabId or activeFileId? activeTabId check
-  const [contextMenuPos, setContextMenuPos] = useState<{ x: number, y: number } | null>(null);
+export const FileItem = ({
+  node,
+  depth,
+  editing,
+  setEditing,
+  onCreateIn,
+  onDelete
+}: FileItemProps): React.JSX.Element => {
+  const isExpanded = useFileSystemStore((s) => !!s.expanded[node.path])
+  const isSelected = useFileSystemStore((s) => s.selectedPath === node.path)
+  const isDirty = useFileSystemStore((s) => {
+    const f = s.files[node.path]
+    return !!f && f.content !== f.savedContent
+  })
+  const isActiveTab = useIDEStore((s) => s.activeTabId === node.path)
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
 
-  // DnD
-  const { attributes, listeners, setNodeRef: setDraggableRef, transform, isDragging } = useDraggable({
-    id: node.path,
-    data: node
-  });
-  const { setNodeRef: setDroppableRef, isOver } = useDroppable({
-    id: node.path,
-    disabled: !node.isDirectory
-  });
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    paddingLeft: `${depth * 10}px` 
-  };
-  const rowStyle = {
-     paddingLeft: `${depth * 10 + 10}px`
-  };
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    isDragging
+  } = useDraggable({
+    id: node.path
+  })
+  // Dropping on a file moves into that file's folder.
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `drop:${node.path}`,
+    data: { dir: node.isDirectory ? node.path : dirname(node.path) }
+  })
+  const setRowRef = (el: HTMLDivElement | null): void => {
+    setDragRef(el)
+    setDropRef(el)
+  }
 
-  // Interaction
-  const handleClick = async (e: React.MouseEvent) => {
-     e.stopPropagation();
-     if (node.isDirectory) {
-        if (!node.isExpanded && (!node.children || node.children.length === 0)) {
-           await loadDir(node.path);
-        } else {
-           toggleDirectory(node.path);
-        }
-     } else {
-        openTab({ id: node.path, type: 'FILE', title: node.name, path: node.path });
-        openFile(node.path);
-     }
-  };
+  const handleClick = (e: React.MouseEvent): void => {
+    e.stopPropagation()
+    const fs = useFileSystemStore.getState()
+    fs.select(node.path)
+    if (node.isDirectory) fs.toggleDirectory(node.path)
+    else useIDEStore.getState().openFileTab(node.path)
+  }
 
-  const handleContextMenu = (e: React.MouseEvent) => {
-     e.preventDefault();
-     e.stopPropagation();
-     setContextMenuPos({ x: e.clientX, y: e.clientY });
-  };
+  const handleRename = async (newName: string): Promise<void> => {
+    setEditing(null)
+    try {
+      await useFileSystemStore
+        .getState()
+        .renameNode(node.path, joinPath(dirname(node.path), newName))
+    } catch (e) {
+      reportError(e, 'Não foi possível renomear')
+    }
+  }
 
-  // Actions
-  const onNewFile = () => {
-     if (!node.isDirectory) return; 
-     // Expand if collapsed
-     if (!node.isExpanded) toggleDirectory(node.path);
-     setEditingState({ type: 'createFile', path: node.path });
-  };
-  const onNewFolder = () => {
-     if (!node.isDirectory) return;
-     if (!node.isExpanded) toggleDirectory(node.path);
-     setEditingState({ type: 'createFolder', path: node.path });
-  };
-  const onRename = () => {
-     setEditingState({ type: 'rename', path: node.path });
-  };
-  const onDelete = async () => {
-      if (window.confirm(`Delete ${node.name}?`)) {
-          await deleteNode(node.path);
-      }
-  };
+  const handleCreate = async (name: string): Promise<void> => {
+    const type = editing?.type
+    setEditing(null)
+    const target = joinPath(node.path, name)
+    try {
+      if (type === 'createFolder') await useFileSystemStore.getState().createDirectory(target)
+      else await useFileSystemStore.getState().createFile(target)
+    } catch (e) {
+      reportError(e, 'Não foi possível criar')
+    }
+  }
 
-  // Submit Handlers
-  const handleRenameSubmit = async (newName: string) => {
-     if (newName !== node.name) {
-        const parent = node.path.replace(/[\\/][^\\/]+$/, ''); // Safer parent extraction?
-        const sep = node.path.includes('\\') ? '\\' : '/';
-        await renameNode(node.path, `${parent}${sep}${newName}`);
-     }
-     setEditingState(null);
-  };
-
-  const handleCreateSubmit = async (name: string, type: 'file' | 'folder') => {
-      const parent = node.path;
-      const sep = parent.includes('\\') ? '\\' : '/';
-      const newPath = `${parent}${sep}${name}`;
-      
-      if (type === 'file') await createFile(newPath);
-      else await createDirectory(newPath);
-      
-      setEditingState(null);
-  };
-
+  const root = useFileSystemStore.getState().rootPath
   const menuItems: ContextMenuItem[] = [
-    ...(node.isDirectory ? [
-        { label: 'New File', icon: FilePlus, action: onNewFile },
-        { label: 'New Folder', icon: FolderPlus, action: onNewFolder },
-    ] : []),
-    { label: 'Rename', icon: Edit, action: onRename },
-    { label: 'Delete', icon: Trash, danger: true, action: onDelete }
-  ];
+    ...(node.isDirectory
+      ? [
+          {
+            label: 'Novo arquivo',
+            icon: FilePlus,
+            action: () => onCreateIn(node.path, 'createFile')
+          },
+          {
+            label: 'Nova pasta',
+            icon: FolderPlus,
+            action: () => onCreateIn(node.path, 'createFolder')
+          }
+        ]
+      : []),
+    {
+      label: 'Renomear',
+      icon: Edit,
+      shortcut: 'F2',
+      separator: node.isDirectory,
+      action: () => setEditing({ type: 'rename', path: node.path })
+    },
+    { label: 'Excluir', icon: Trash, danger: true, shortcut: 'Del', action: () => onDelete(node) },
+    {
+      label: 'Copiar caminho relativo',
+      icon: Copy,
+      separator: true,
+      action: () => navigator.clipboard.writeText(relativeTo(root, node.path))
+    },
+    { label: 'Mostrar no Explorer', icon: ExternalLink, action: () => window.api.reveal(node.path) }
+  ]
 
-  const isRenaming = editingState?.type === 'rename' && editingState.path === node.path;
-  const isCreatingChild = (editingState?.type === 'createFile' || editingState?.type === 'createFolder') && editingState.path === node.path;
+  const isRenaming = editing?.type === 'rename' && editing.path === node.path
+  const isCreatingChild = editing?.type !== 'rename' && editing?.path === node.path
 
-  // Render Rename Input
   if (isRenaming) {
-     return (
-        <FileInput 
-           initialValue={node.name} 
-           type={node.isDirectory ? 'folder' : 'file'}
-           depth={depth}
-           onSubmit={handleRenameSubmit}
-           onCancel={() => setEditingState(null)}
-        />
-     );
+    return (
+      <FileInput
+        initialValue={node.name}
+        type={node.isDirectory ? 'folder' : 'file'}
+        depth={depth}
+        onSubmit={handleRename}
+        onCancel={() => setEditing(null)}
+      />
+    )
   }
 
   return (
-    <>
-      <div 
-         ref={setDraggableRef} 
-         style={{ ...style, zIndex: isDragging ? 999 : 'auto', position: 'relative' }} 
-         {...attributes} 
-         {...listeners}
+    <div>
+      <div
+        ref={setRowRef}
+        {...attributes}
+        {...listeners}
+        role="treeitem"
+        aria-selected={isSelected}
+        tabIndex={-1}
+        className={clsx(
+          'flex cursor-pointer items-center py-[3px] pr-2 outline-none',
+          isOver
+            ? 'bg-ide-select/60'
+            : isSelected
+              ? 'bg-ide-active text-white'
+              : isActiveTab
+                ? 'bg-ide-hover'
+                : 'hover:bg-ide-hover',
+          isDragging && 'opacity-40'
+        )}
+        style={{ paddingLeft: `${depth * 12 + 8}px` }}
+        onClick={handleClick}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          useFileSystemStore.getState().select(node.path)
+          setMenuPos({ x: e.clientX, y: e.clientY })
+        }}
       >
-        <div 
-          ref={setDroppableRef}
+        <span
           className={clsx(
-             "flex items-center py-1 cursor-pointer hover:bg-[#2a2d2e] transition-colors",
-             activeTabId === node.path && "bg-[#37373d] text-white", // Active selection highlight
-             isOver && "bg-blue-800/50 border-2 border-blue-500"
+            'mr-0.5 flex w-4 flex-none justify-center text-gray-400 transition-transform duration-100',
+            isExpanded && 'rotate-90'
           )}
-          style={rowStyle}
-          onClick={handleClick}
-          onContextMenu={handleContextMenu}
         >
-          <span className={clsx("mr-1 text-gray-400 transition-transform duration-200 flex-shrink-0", node.isExpanded && "rotate-90")}>
-             {node.isDirectory ? (
-                <ChevronRight size={14} /> 
-             ) : <div className="w-3.5" />}
-          </span>
-          <span className="mr-1.5 flex-shrink-0">
-             <FileIcon name={node.name} isDirectory={node.isDirectory} isOpen={node.isExpanded} />
-          </span>
-          <span className="text-sm truncate select-none">{node.name}</span>
-        </div>
-        
-        {/* Children & Creation Input */}
-        {node.isDirectory && node.isExpanded && (
-           <div className="cursor-default" onPointerDown={e => e.stopPropagation()}> 
-              {isCreatingChild && (
-                 <FileInput 
-                    type={editingState?.type === 'createFolder' ? 'folder' : 'file'}
-                    depth={depth + 1}
-                    onSubmit={val => handleCreateSubmit(val, editingState?.type === 'createFolder' ? 'folder' : 'file')}
-                    onCancel={() => setEditingState(null)}
-                 />
-              )}
-              {node.children?.map(child => (
-                 <FileItem 
-                    key={child.path} 
-                    node={child} 
-                    depth={depth + 1} 
-                    editingState={editingState}
-                    setEditingState={setEditingState}
-                 />
-              ))}
-           </div>
+          {node.isDirectory && <ChevronRight size={14} />}
+        </span>
+        <span className="mr-1.5 flex-none">
+          <FileIcon name={node.name} isDirectory={node.isDirectory} isOpen={isExpanded} />
+        </span>
+        <span className="flex-1 select-none truncate text-[13px]">{node.name}</span>
+        {isDirty && (
+          <span className="ml-1 h-2 w-2 flex-none rounded-full bg-white/70" title="Não salvo" />
         )}
       </div>
 
-      <ContextMenu 
-        position={contextMenuPos} 
-        items={menuItems} 
-        onClose={() => setContextMenuPos(null)} 
-      />
-    </>
-  );
-};
+      {node.isDirectory && isExpanded && (
+        <div role="group">
+          {isCreatingChild && (
+            <FileInput
+              type={editing?.type === 'createFolder' ? 'folder' : 'file'}
+              depth={depth + 1}
+              onSubmit={handleCreate}
+              onCancel={() => setEditing(null)}
+            />
+          )}
+          {node.children?.map((child) => (
+            <FileItem
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              editing={editing}
+              setEditing={setEditing}
+              onCreateIn={onCreateIn}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      )}
+
+      <ContextMenu position={menuPos} items={menuItems} onClose={() => setMenuPos(null)} />
+    </div>
+  )
+}

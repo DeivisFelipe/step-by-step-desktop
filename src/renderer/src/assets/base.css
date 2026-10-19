@@ -77,16 +77,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent; 
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #424242; 
+  background: #424242;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #4f4f4f; 
+  background: #4f4f4f;
 }
 
 ::-webkit-scrollbar-corner {

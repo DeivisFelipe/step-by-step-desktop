@@ -1,10 +1,10 @@
 {
   "name": "step-by-step-code",
   "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "description": "Prepare aulas de programação passo a passo e apresente-as com animação de digitação.",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "Deivis Felipe",
+  "homepage": "https://github.com/DeivisFelipe/step-by-step-code",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -34,9 +34,6 @@
     "lucide-react": "^0.563.0",
     "monaco-editor": "^0.55.1",
     "node-pty": "^1.1.0",
-    "tailwind-merge": "^3.4.0",
-    "uuid": "^13.0.0",
-    "vscode-material-icons": "^0.1.1",
     "zustand": "^5.0.10"
   },
   "devDependencies": {

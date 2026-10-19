@@ -1,56 +1,61 @@
-export type FileSystem = Record<string, FileContent>;
-
-export interface FileContent {
-  content: string;
-  language: string; // 'javascript', 'typescript', 'python', 'json', etc.
-  isOpen: boolean;
-}
-
-export type NodeType = 'FLOW' | 'STEP';
+export type NodeType = 'FLOW' | 'STEP'
 
 export interface LessonNode {
-  id: string;
-  parentId: string | null;
-  type: NodeType;
-  title: string;
-  children?: LessonNode[]; // Only if type === 'FLOW'
-  isExpanded?: boolean;    // UI state
-  
-  // Payload (Only if type === 'STEP')
-  data?: StepData;
+  id: string
+  parentId: string | null
+  type: NodeType
+  title: string
+  /** Only for FLOW nodes. */
+  children?: LessonNode[]
+  /** UI state, persisted so the outline reopens the way it was left. */
+  isExpanded?: boolean
+  /** Only for STEP nodes. */
+  data?: StepData
 }
 
 export interface StepData {
-  presenterNotes?: string;
-  enableSnapshot: boolean;
-  
-  action: ActionType;
+  presenterNotes?: string
+  action: ActionType
 }
 
-export type ActionType = FileAction | TerminalAction;
+export type ActionType = FileAction | TerminalAction
+
+export type FileOperation =
+  | 'CREATE'
+  | 'OVERWRITE'
+  | 'APPEND'
+  | 'PREPEND'
+  | 'REPLACE_TOKEN'
+  | 'CURSOR_POSITION'
 
 export interface FileAction {
-  kind: 'FILE';
-  targetMode: 'SPECIFIC_PATH' | 'ACTIVE_FILE';
-  targetPath?: string; // Required if SPECIFIC_PATH
-  
-  operation: 'CREATE' | 'OVERWRITE' | 'APPEND' | 'PREPEND' | 'REPLACE_TOKEN' | 'CURSOR_POSITION';
-  
-  content: string;
-  replaceToken?: string; // Used if operation === 'REPLACE_TOKEN'
-  
+  kind: 'FILE'
+  targetMode: 'SPECIFIC_PATH' | 'ACTIVE_FILE'
+  /** Relative to the workspace root (absolute paths are accepted too). */
+  targetPath?: string
+  operation: FileOperation
+  content: string
+  /** Text to look for when operation === 'REPLACE_TOKEN'. */
+  replaceToken?: string
   config: {
-    typingAnimation: boolean;
-    typingSpeedMs?: number; // default 50
-    clearFileFirst?: boolean;
-    focusAfter?: boolean;
-  };
+    typingAnimation: boolean
+    /** Delay between typed characters, default 30. */
+    typingSpeedMs?: number
+    /** Only used to highlight the content in the step editor. */
+    language?: string
+  }
 }
 
 export interface TerminalAction {
-  kind: 'TERMINAL';
-  command: string;
-  executeImmediately: boolean; // if false, just type into prompt
+  kind: 'TERMINAL'
+  command: string
+  /** When false the command is only typed into the prompt. */
+  executeImmediately: boolean
+  typingAnimation?: boolean
+  typingSpeedMs?: number
 }
 
-export type Snapshots = Record<string, FileSystem>; // Key: stepId -> FileSystem state
+export interface LessonFile {
+  version: 1
+  tree: LessonNode[]
+}
