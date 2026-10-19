@@ -4,6 +4,19 @@ Aplicativo desktop (Electron + React + TypeScript) para **preparar aulas de prog
 
 É a versão desktop da extensão [Step-by-Step-Code para VS Code](https://github.com/DeivisFelipe/step-by-step-code).
 
+## 💾 Instalação
+
+Baixe o `step-by-step-code-x.y.z-setup.exe` da [página de releases](https://github.com/DeivisFelipe/step-by-step-desktop/releases/latest) e execute. O app é instalado para o seu usuário (sem pedir administrador) e cria um atalho na área de trabalho.
+
+> Como o instalador não é assinado digitalmente, o Windows pode mostrar “O Windows protegeu o computador”. Clique em **Mais informações → Executar assim mesmo**.
+
+**Atualizações**: o app verifica sozinho se há versão nova no GitHub, baixa em segundo plano e mostra **Reiniciar para atualizar** na barra de status. A versão nova é instalada por cima da antiga, que é removida. Se preferir, a atualização é instalada na próxima vez que o app for fechado. Também dá para verificar manualmente em **Configurações → Versão**.
+
+**Seus arquivos são mantidos** ao atualizar ou desinstalar:
+
+- as aulas ficam dentro de cada projeto, na pasta `.stepbystep/`;
+- as configurações (estilos, OBS, servidor) e a lista de pastas recentes ficam em `%APPDATA%\step-by-step-code`.
+
 ## ✨ Funcionalidades
 
 ### Preparar a aula
@@ -95,7 +108,26 @@ npm run lint
 npm run build:win
 ```
 
-Também há `build:mac` e `build:linux`.
+O instalador fica em `dist/`. Também há `build:mac` e `build:linux`.
+
+> Se o build no Windows falhar com `Cannot create symbolic link` ao extrair o `winCodeSign`,
+> ative o **Modo de Desenvolvedor** do Windows (Configurações → Sistema → Para desenvolvedores)
+> ou rode o terminal como administrador. O pacote traz links simbólicos de macOS que o Windows
+> só deixa criar nesses casos.
+
+### Publicar uma nova versão
+
+O workflow [`release.yml`](.github/workflows/release.yml) gera o instalador e publica o release no GitHub sempre que uma tag de versão é enviada. Para lançar uma versão nova:
+
+```bash
+npm version patch
+```
+
+```bash
+git push --follow-tags
+```
+
+`npm version patch` sobe a versão (1.0.0 → 1.0.1), faz o commit e cria a tag `v1.0.1`. Use `minor` ou `major` para mudanças maiores. Em alguns minutos o release aparece no GitHub e os apps instalados se atualizam sozinhos.
 
 ## 📁 Estrutura
 

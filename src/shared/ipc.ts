@@ -1,5 +1,17 @@
 // Payloads exchanged between the main process and the IDE over IPC.
 
+export interface UpdateStatus {
+  /** Installed version. */
+  current: string
+  state: 'disabled' | 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'ready' | 'error'
+  /** Version being downloaded or ready to install. */
+  version: string | null
+  percent: number
+  error: string | null
+  /** Release notes (Markdown/HTML from GitHub). */
+  notes: string | null
+}
+
 export interface ServerInfo {
   port: number
   /** Base URL on this machine, e.g. http://127.0.0.1:4545 */
