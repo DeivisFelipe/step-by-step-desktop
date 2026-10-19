@@ -99,6 +99,8 @@ export interface CustomAPI {
   checkForUpdates: () => Promise<UpdateStatus>
   /** Closes the app and installs the downloaded version. */
   installUpdate: () => void
+  /** Opens the log of update checks. */
+  openUpdateLog: () => void
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
 
   gitLog: (root: string) => Promise<GitCommit[]>

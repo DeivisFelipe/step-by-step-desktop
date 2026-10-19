@@ -470,6 +470,14 @@ const VersionRow = (): React.JSX.Element => {
           </button>
         )
       )}
+      {updater.state !== 'disabled' && (
+        <button
+          className="text-[12px] text-ide-muted hover:text-white hover:underline"
+          onClick={() => window.api.openUpdateLog()}
+        >
+          ver registro
+        </button>
+      )}
     </Row>
   )
 }
