@@ -43,6 +43,10 @@ export function loadSettings(): AppSettings {
   settings = merge(structuredClone(DEFAULT_SETTINGS), saved)
   // Built-in presets always exist; user edits of them are kept.
   settings.presentation.presets = { ...BUILTIN_PRESETS, ...settings.presentation.presets }
+  // Presets saved by older versions get the options added since then.
+  for (const [name, style] of Object.entries(settings.presentation.presets)) {
+    settings.presentation.presets[name] = { ...BUILTIN_PRESETS.Carbon, ...style }
+  }
   if (!settings.presentation.presets[settings.presentation.preset]) {
     settings.presentation.preset = 'Carbon'
   }

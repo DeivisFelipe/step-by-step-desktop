@@ -6,6 +6,7 @@ import {
   TerminalUse,
   revertChanges,
   skipAnimation,
+  resumeStep,
   StepError
 } from '../engine/ExecutionEngine'
 import { findNode, flattenSteps } from '../lib/tree'
@@ -164,6 +165,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   },
 
   runNext: async () => {
+    // A step waiting before its terminal command continues instead.
+    if (resumeStep()) return
     const next = getNextStep(useLessonStore.getState().tree, get().history)
     if (!next) {
       useIDEStore.getState().notify('Todos os passos já foram executados.', 'info')

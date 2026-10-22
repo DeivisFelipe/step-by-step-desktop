@@ -2,11 +2,12 @@ import { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import { onTerminal, onTerminalSize, terminalBuffer, terminalWidth } from './connection'
+import { onTerminal, terminalLog } from './connection'
 
 /**
- * Read-only mirror of one of the app's terminals. It uses the app terminal's
- * column count (shrinking the font if needed) so lines wrap exactly the same.
+ * Read-only mirror of one of the app's terminals. It always has the app terminal's rows
+ * and columns (the shell moves the cursor by position, so any other size mixes the lines)
+ * and shrinks the font until that grid fits.
  */
 export const TerminalContent = ({
   terminalId,
@@ -37,37 +38,59 @@ export const TerminalContent = ({
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(container)
+    let size = { cols: 80, rows: 24 }
 
-    const layout = (): void => {
+    /** Largest font (up to `fontSize`) that fits the terminal grid in the container. */
+    const fitFont = (): void => {
       if (container.offsetWidth === 0) return
-      try {
-        const cols = terminalId !== null ? terminalWidth(terminalId) : null
-        term.options.fontSize = fontSize
+      let font = fontSize
+      term.options.fontSize = font
+      for (let i = 0; i < 40; i++) {
         const proposed = fit.proposeDimensions()
-        if (!proposed) return
-        if (cols && proposed.cols < cols) {
-          // Shrink the font until the app's columns fit the width.
-          term.options.fontSize = Math.max(8, Math.floor((fontSize * proposed.cols) / cols))
-        }
-        const rows = fit.proposeDimensions()?.rows ?? proposed.rows
-        term.resize(cols ?? proposed.cols, Math.max(rows, 2))
+        if (!proposed || (proposed.cols >= size.cols && proposed.rows >= size.rows)) return
+        const scale = Math.min(proposed.cols / size.cols, proposed.rows / size.rows)
+        const next = Math.max(6, Math.min(font - 1, Math.floor(font * scale)))
+        if (next === font) return
+        font = next
+        term.options.fontSize = font
+      }
+    }
+
+    const applySize = (cols: number, rows: number): void => {
+      size = { cols, rows }
+      try {
+        term.resize(cols, rows)
       } catch {
         // not ready
       }
+      fitFont()
     }
-    layout()
-    if (terminalId !== null) term.write(terminalBuffer(terminalId))
-    const offData = onTerminal((id, data, snapshot) => {
+
+    // Size changes wait for the output already queued, so each piece is drawn at its size.
+    const queueSize = (cols: number, rows: number): void => {
+      term.write('', () => applySize(cols, rows))
+    }
+
+    const replay = (): void => {
+      term.reset()
+      if (terminalId === null) return
+      for (const segment of terminalLog(terminalId)) {
+        queueSize(segment.cols, segment.rows)
+        term.write(segment.data)
+      }
+    }
+
+    replay()
+    const off = onTerminal((id, event) => {
       if (id !== terminalId) return
-      if (snapshot) term.reset()
-      term.write(data)
+      if (event.type === 'replay') replay()
+      else if (event.type === 'size') queueSize(event.cols, event.rows)
+      else term.write(event.data)
     })
-    const offSize = onTerminalSize((id) => id === terminalId && layout())
-    const observer = new ResizeObserver(layout)
+    const observer = new ResizeObserver(fitFont)
     observer.observe(container)
     return () => {
-      offData()
-      offSize()
+      off()
       observer.disconnect()
       term.dispose()
     }

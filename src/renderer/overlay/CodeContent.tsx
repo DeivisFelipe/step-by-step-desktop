@@ -144,7 +144,7 @@ export const CodeContent = ({
   return (
     <div
       ref={scroller}
-      className="ssc-code h-full w-full overflow-hidden"
+      className="ssc-code ssc-scroll h-full w-full select-text overflow-auto"
       style={{
         fontFamily: style.fontFamily,
         fontSize: size,

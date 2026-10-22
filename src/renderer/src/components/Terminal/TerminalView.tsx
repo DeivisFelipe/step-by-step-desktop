@@ -81,7 +81,12 @@ const TerminalInstance = ({
     const syncSize = (): void => {
       if (disposed || container.offsetWidth === 0 || container.offsetHeight === 0) return
       try {
-        fit.fit()
+        const proposed = fit.proposeDimensions()
+        if (!proposed) return
+        // The stage mirrors this grid: a column limit keeps its letters readable.
+        const max = useSettingsStore.getState().settings.terminalColumns
+        const cols = max > 0 ? Math.min(proposed.cols, max) : proposed.cols
+        if (cols !== term.cols || proposed.rows !== term.rows) term.resize(cols, proposed.rows)
         if (id !== null) window.api.resizeTerminal(id, term.cols, term.rows)
       } catch {
         // terminal not ready yet
@@ -141,10 +146,14 @@ const TerminalInstance = ({
 
     const observer = new ResizeObserver(() => syncSize())
     observer.observe(container)
+    const offSettings = useSettingsStore.subscribe((state, previous) => {
+      if (state.settings.terminalColumns !== previous.settings.terminalColumns) syncSize()
+    })
 
     return () => {
       disposed = true
       observer.disconnect()
+      offSettings()
       offData()
       offExit()
       input.dispose()

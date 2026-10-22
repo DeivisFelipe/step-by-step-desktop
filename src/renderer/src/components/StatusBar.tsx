@@ -9,6 +9,7 @@ import {
 import { useIDEStore } from '../store/useIDEStore'
 import { useLessonStore } from '../store/useLessonStore'
 import { usePlayerStore } from '../store/usePlayerStore'
+import { usePauseStore } from '../engine/ExecutionEngine'
 import { findNode, flattenSteps } from '../lib/tree'
 import ProjectMenu from './ProjectMenu'
 import { restartToUpdate } from '../lib/updates'
@@ -22,6 +23,7 @@ const StatusBar = (): React.JSX.Element => {
   const tree = useLessonStore((s) => s.tree)
   const history = usePlayerStore((s) => s.history)
   const runningStepId = usePlayerStore((s) => s.runningStepId)
+  const paused = usePauseStore((s) => s.paused)
   const terminalVisible = useIDEStore((s) => s.terminalVisible)
   const updater = useSettingsStore((s) => s.updater)
 
@@ -67,7 +69,17 @@ const StatusBar = (): React.JSX.Element => {
         </button>
       )}
 
-      {running && (
+      {running && paused && (
+        <button
+          className={item}
+          onClick={() => usePlayerStore.getState().runNext()}
+          title="Rodar o comando no terminal (F8)"
+        >
+          <SkipForward size={12} />
+          Código pronto — F8 para rodar o comando
+        </button>
+      )}
+      {running && !paused && (
         <button
           className={item}
           onClick={() => usePlayerStore.getState().skip()}

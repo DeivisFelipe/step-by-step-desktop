@@ -9,7 +9,8 @@ import {
   PRESENTATION_PAGES,
   PresenterPayload,
   RemoteCommand,
-  StagePayload
+  StagePayload,
+  TerminalSegment
 } from '../shared/presentation'
 
 // Local HTTP server for the presentation pages (OBS browser sources, presenter
@@ -55,8 +56,7 @@ export class PresentationServer {
   private clients = new Set<Client>()
   private stage: StagePayload | null = null
   private presenter: PresenterPayload | null = null
-  private terminals = new Map<number, string>()
-  private terminalSizes = new Map<number, { cols: number; rows: number }>()
+  private terminals = new Map<number, TerminalSegment[]>()
   private workspace: string | null = null
   private settings: AppSettings
   private port = 0
@@ -163,21 +163,46 @@ export class PresentationServer {
     this.broadcast('presenter', presenter, true)
   }
 
+  /** Output of a terminal, split by the size it had (ptys start at 80×24). */
+  private terminalLog(id: number): TerminalSegment[] {
+    let log = this.terminals.get(id)
+    if (!log) {
+      log = [{ cols: 80, rows: 24, data: '' }]
+      this.terminals.set(id, log)
+    }
+    return log
+  }
+
   terminalData(id: number, data: string): void {
-    const text = (this.terminals.get(id) ?? '') + data
-    this.terminals.set(id, text.length > TERMINAL_BUFFER ? text.slice(-TERMINAL_BUFFER) : text)
+    const log = this.terminalLog(id)
+    log[log.length - 1].data += data
+    let total = log.reduce((sum, segment) => sum + segment.data.length, 0)
+    while (total > TERMINAL_BUFFER) {
+      const first = log[0]
+      const excess = total - TERMINAL_BUFFER
+      if (log.length > 1 && first.data.length <= excess) {
+        log.shift()
+        total -= first.data.length
+      } else {
+        first.data = first.data.slice(excess)
+        total -= excess
+      }
+    }
     this.broadcast('terminal', { id, data })
   }
 
-  /** The app terminal's size, so mirrors wrap lines at the same width. */
+  /** The app terminal's size: mirrors use the same rows and columns. */
   terminalResized(id: number, cols: number, rows: number): void {
-    this.terminalSizes.set(id, { cols, rows })
+    const log = this.terminalLog(id)
+    const last = log[log.length - 1]
+    if (last.cols === cols && last.rows === rows) return
+    if (last.data) log.push({ cols, rows, data: '' })
+    else Object.assign(last, { cols, rows })
     this.broadcast('terminal-size', { id, cols, rows })
   }
 
   terminalClosed(id: number): void {
     this.terminals.delete(id)
-    this.terminalSizes.delete(id)
   }
 
   private config(): { presentation: AppSettings['presentation'] } {
@@ -257,8 +282,7 @@ export class PresentationServer {
     }
     write('hello', { now: Date.now(), authorized: client.authorized })
     write('config', this.config())
-    for (const [id, size] of this.terminalSizes) write('terminal-size', { id, ...size })
-    for (const [id, data] of this.terminals) write('terminal', { id, data, snapshot: true })
+    for (const [id, segments] of this.terminals) write('terminal-log', { id, segments })
     if (this.stage) write('stage', this.stage)
     if (client.authorized && this.presenter) write('presenter', this.presenter)
     req.on('close', () => this.clients.delete(client))

@@ -25,6 +25,15 @@ body.no-scroll {
   overflow: hidden;
 }
 
+/* Scrollable with the mouse wheel, without a scrollbar on the video. */
+.ssc-scroll {
+  scrollbar-width: none;
+}
+
+.ssc-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .ssc-code pre {
   margin: 0;
   background: transparent !important;

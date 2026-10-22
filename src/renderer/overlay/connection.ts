@@ -3,7 +3,8 @@ import {
   AppSettings,
   PresenterPayload,
   RemoteCommand,
-  StagePayload
+  StagePayload,
+  TerminalSegment
 } from '../../shared/presentation'
 
 // Live connection to the app's presentation server (Server-Sent Events).
@@ -34,30 +35,39 @@ export const useConnection = create<ConnectionStore>(() => ({
   presenter: null
 }))
 
-type TerminalListener = (id: number, data: string, snapshot: boolean) => void
+/** A change to a mirrored terminal: new output, a new size, or a full log to replay. */
+export type TerminalEvent =
+  | { type: 'data'; data: string }
+  | { type: 'size'; cols: number; rows: number }
+  | { type: 'replay' }
+
+type TerminalListener = (id: number, event: TerminalEvent) => void
 const terminalListeners = new Set<TerminalListener>()
-const terminalBuffers = new Map<number, string>()
-const terminalCols = new Map<number, number>()
-const sizeListeners = new Set<(id: number, cols: number) => void>()
+const terminalLogs = new Map<number, TerminalSegment[]>()
+const TERMINAL_BUFFER = 200_000
 
-/** Columns of the app terminal (lines wrap at this width). */
-export function terminalWidth(id: number): number | null {
-  return terminalCols.get(id) ?? null
+/** Output of an app terminal, split by the size the terminal had when it was written. */
+export function terminalLog(id: number): TerminalSegment[] {
+  return terminalLogs.get(id) ?? []
 }
 
-export function onTerminalSize(listener: (id: number, cols: number) => void): () => void {
-  sizeListeners.add(listener)
-  return () => sizeListeners.delete(listener)
-}
-
-/** Subscribes to terminal output; returns the unsubscribe function. */
+/** Subscribes to terminal changes; returns the unsubscribe function. */
 export function onTerminal(listener: TerminalListener): () => void {
   terminalListeners.add(listener)
   return () => terminalListeners.delete(listener)
 }
 
-export function terminalBuffer(id: number): string {
-  return terminalBuffers.get(id) ?? ''
+function emitTerminal(id: number, event: TerminalEvent): void {
+  for (const listener of terminalListeners) listener(id, event)
+}
+
+function lastSegment(id: number): TerminalSegment {
+  let log = terminalLogs.get(id)
+  if (!log) {
+    log = [{ cols: 80, rows: 24, data: '' }]
+    terminalLogs.set(id, log)
+  }
+  return log[log.length - 1]
 }
 
 export function connect(): void {
@@ -80,16 +90,29 @@ export function connect(): void {
   source.addEventListener('presenter', (e) =>
     useConnection.setState({ presenter: json<PresenterPayload>(e) })
   )
+  source.addEventListener('terminal-log', (e) => {
+    const { id, segments } = json<{ id: number; segments: TerminalSegment[] }>(e)
+    terminalLogs.set(id, segments.length ? segments : [{ cols: 80, rows: 24, data: '' }])
+    emitTerminal(id, { type: 'replay' })
+  })
   source.addEventListener('terminal-size', (e) => {
-    const { id, cols } = json<{ id: number; cols: number }>(e)
-    terminalCols.set(id, cols)
-    for (const listener of sizeListeners) listener(id, cols)
+    const { id, cols, rows } = json<{ id: number; cols: number; rows: number }>(e)
+    const last = lastSegment(id)
+    if (last.data) terminalLogs.get(id)!.push({ cols, rows, data: '' })
+    else Object.assign(last, { cols, rows })
+    emitTerminal(id, { type: 'size', cols, rows })
   })
   source.addEventListener('terminal', (e) => {
-    const { id, data, snapshot } = json<{ id: number; data: string; snapshot?: boolean }>(e)
-    const text = (snapshot ? '' : (terminalBuffers.get(id) ?? '')) + data
-    terminalBuffers.set(id, text.length > 200_000 ? text.slice(-100_000) : text)
-    for (const listener of terminalListeners) listener(id, data, !!snapshot)
+    const { id, data } = json<{ id: number; data: string }>(e)
+    const last = lastSegment(id)
+    last.data += data
+    const log = terminalLogs.get(id)!
+    if (log.length > 1 && log.reduce((sum, s) => sum + s.data.length, 0) > TERMINAL_BUFFER) {
+      log.shift()
+    } else if (last.data.length > TERMINAL_BUFFER) {
+      last.data = last.data.slice(-TERMINAL_BUFFER / 2)
+    }
+    emitTerminal(id, { type: 'data', data })
   })
 }
 

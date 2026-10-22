@@ -1,4 +1,5 @@
 import type { editor as MonacoEditor } from 'monaco-editor'
+import { create } from 'zustand'
 import {
   ChallengeAction,
   FileAction,
@@ -64,8 +65,24 @@ export function skipAnimation(): void {
   skipRequested = true
 }
 
+/** Set while a step waits for the presenter (F8) before running a terminal command. */
+export const usePauseStore = create<{ paused: boolean }>(() => ({ paused: false }))
+let resumePaused: (() => void) | null = null
+
+/** Continues a step waiting before a terminal command; false when none is waiting. */
+export function resumeStep(): boolean {
+  const resume = resumePaused
+  if (!resume) return false
+  resumePaused = null
+  usePauseStore.setState({ paused: false })
+  resume()
+  return true
+}
+
 interface Context {
   instant: boolean
+  /** The step put code on stage (file or highlight) since its last terminal command. */
+  shownCode: boolean
   record: (change: FileChange) => void
   useTerminal: (use: TerminalUse) => void
 }
@@ -79,6 +96,7 @@ export async function executeStep(step: LessonNode, options: RunOptions = {}): P
 
   const ctx: Context = {
     instant: !!options.instant,
+    shownCode: false,
     // Keep only the first "before" of each file: that is what undo restores.
     record: (change) => {
       if (!changes.some((c) => samePath(c.path, change.path))) changes.push(change)
@@ -100,6 +118,7 @@ export async function executeStep(step: LessonNode, options: RunOptions = {}): P
 async function runAction(action: StepAction, ctx: Context): Promise<void> {
   switch (action.kind) {
     case 'FILE':
+      ctx.shownCode = true
       return runFileAction(action, ctx)
     case 'TERMINAL':
       return runTerminalAction(action, ctx)
@@ -108,6 +127,7 @@ async function runAction(action: StepAction, ctx: Context): Promise<void> {
     case 'SLIDE':
       return runSlideAction(action)
     case 'HIGHLIGHT':
+      ctx.shownCode = true
       return runHighlightAction(action)
     case 'CHALLENGE':
       return runChallengeAction(action)
@@ -440,6 +460,17 @@ async function terminalFor(
 async function runTerminalAction(action: TerminalAction, ctx: Context): Promise<void> {
   const command = resolvePlaceholders(action.command).replace(/\r?\n/g, '\r')
   if (!command.trim()) throw new StepError('Este passo não tem nenhum comando.')
+
+  if (!ctx.instant && ctx.shownCode && action.pauseBefore !== false) {
+    // Keep the code on stage until the presenter asks for the command.
+    useIDEStore
+      .getState()
+      .notify('Código pronto. Aperte F8 (Avançar) para rodar o comando no terminal.', 'info', 6000)
+    usePauseStore.setState({ paused: true })
+    await new Promise<void>((resolve) => (resumePaused = resolve))
+    skipRequested = false
+  }
+  ctx.shownCode = false
 
   const { key, id } = await terminalFor(action.terminal, ctx)
   const stage = useStageStore.getState()
