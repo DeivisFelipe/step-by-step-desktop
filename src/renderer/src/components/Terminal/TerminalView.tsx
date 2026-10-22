@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import { Eraser, Plus, RotateCw, X } from 'lucide-react'
+import { Columns2, Eraser, Plus, RotateCw, X } from 'lucide-react'
 import { useFileSystemStore } from '../../store/useFileSystemStore'
 import { useIDEStore } from '../../store/useIDEStore'
 import { TerminalSession, useTerminalStore } from '../../store/useTerminalStore'
@@ -167,6 +167,7 @@ const TerminalInstance = ({
 const TerminalPanel = (): React.JSX.Element => {
   const sessions = useTerminalStore((s) => s.sessions)
   const activeKey = useTerminalStore((s) => s.activeKey)
+  const split = useTerminalStore((s) => s.split)
   const [shells, setShells] = useState<string[]>([])
   const defaultShell = shells[0] || ''
   const activeShell = sessions.find((s) => s.key === activeKey)?.shell || defaultShell
@@ -239,6 +240,13 @@ const TerminalPanel = (): React.JSX.Element => {
           ))}
         </select>
         <button
+          className={clsx(button, split && 'bg-ide-border text-white')}
+          title={split ? 'Mostrar em abas' : 'Mostrar terminais lado a lado'}
+          onClick={() => terminals().setSplit(!split)}
+        >
+          <Columns2 size={14} />
+        </button>
+        <button
           className={button}
           title="Limpar"
           onClick={() => instances.get(activeKey)?.term.clear()}
@@ -260,14 +268,31 @@ const TerminalPanel = (): React.JSX.Element => {
           <X size={14} />
         </button>
       </div>
-      <div className="min-h-0 flex-1 pl-3 pt-1">
+      <div className={clsx('flex min-h-0 flex-1', !split && 'pl-3 pt-1')}>
         {sessions.map((s) => (
-          <TerminalInstance
+          <div
             key={s.key}
-            session={s}
-            defaultShell={defaultShell}
-            visible={s.key === activeKey}
-          />
+            className={clsx(
+              'flex min-w-0 flex-col',
+              split ? 'flex-1 border-l border-ide-border first:border-l-0' : 'w-full',
+              !split && s.key !== activeKey && 'hidden'
+            )}
+            onMouseDown={() => split && select(s.key)}
+          >
+            {split && (
+              <div
+                className={clsx(
+                  'flex-none truncate px-3 py-0.5 text-[11px]',
+                  s.key === activeKey ? 'bg-ide-active text-white' : 'text-ide-muted'
+                )}
+              >
+                {s.name}
+              </div>
+            )}
+            <div className={clsx('min-h-0 flex-1', split && 'pl-2 pt-1')}>
+              <TerminalInstance session={s} defaultShell={defaultShell} visible />
+            </div>
+          </div>
         ))}
       </div>
     </div>

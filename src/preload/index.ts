@@ -10,7 +10,7 @@ function listen<T extends unknown[]>(channel: string, callback: (...args: T) => 
 }
 
 const api: CustomAPI = {
-  openFolder: () => ipcRenderer.invoke('file:open-folder'),
+  openFolder: (title) => ipcRenderer.invoke('file:open-folder', title),
   readDir: (path) => ipcRenderer.invoke('file:read-dir', path),
   exists: (path) => ipcRenderer.invoke('file:exists', path),
   readFile: (path) => ipcRenderer.invoke('file:read', path),

@@ -67,7 +67,10 @@ function createWindow(): void {
     icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      // Typing animations and timers must keep their pace while the window is
+      // behind OBS or another app.
+      backgroundThrottling: false
     }
   })
 
@@ -94,7 +97,21 @@ function createWindow(): void {
   }
 }
 
+// A second copy of the app would fight over the same settings and storage:
+// focus the window that is already open instead.
+const isFirstInstance = app.requestSingleInstanceLock()
+if (!isFirstInstance) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  })
+}
+
 app.whenReady().then(() => {
+  if (!isFirstInstance) return
   electronApp.setAppUserModelId('com.stepbystep.code')
 
   app.on('browser-window-created', (_, window) => {
@@ -141,9 +158,9 @@ app.on('window-all-closed', () => {
 })
 
 function setupFileSystemHandlers(): void {
-  ipcMain.handle('file:open-folder', async () => {
+  ipcMain.handle('file:open-folder', async (_, title?: string) => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
-      title: 'Abrir pasta',
+      title: title || 'Abrir pasta',
       properties: ['openDirectory', 'createDirectory']
     })
     if (canceled || filePaths.length === 0) return null

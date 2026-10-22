@@ -33,8 +33,15 @@ export interface FileChange {
   before: string | null
 }
 
+/** A terminal a step typed into; `created` when the step opened it. */
+export interface TerminalUse {
+  key: string
+  created: boolean
+}
+
 export interface StepRun {
   changes: FileChange[]
+  terminals: TerminalUse[]
   /** Set when an action failed; the changes made before it are still listed. */
   error: unknown | null
 }
@@ -60,11 +67,13 @@ export function skipAnimation(): void {
 interface Context {
   instant: boolean
   record: (change: FileChange) => void
+  useTerminal: (use: TerminalUse) => void
 }
 
 export async function executeStep(step: LessonNode, options: RunOptions = {}): Promise<StepRun> {
   const changes: FileChange[] = []
-  if (step.type !== 'STEP' || !step.data) return { changes, error: null }
+  const terminals: TerminalUse[] = []
+  if (step.type !== 'STEP' || !step.data) return { changes, terminals, error: null }
   skipRequested = false
   useStageStore.getState().setHighlight(null)
 
@@ -73,13 +82,18 @@ export async function executeStep(step: LessonNode, options: RunOptions = {}): P
     // Keep only the first "before" of each file: that is what undo restores.
     record: (change) => {
       if (!changes.some((c) => samePath(c.path, change.path))) changes.push(change)
+    },
+    useTerminal: (use) => {
+      const existing = terminals.find((t) => t.key === use.key)
+      if (existing) existing.created ||= use.created
+      else terminals.push(use)
     }
   }
   try {
     for (const action of step.data.actions) await runAction(action, ctx)
-    return { changes, error: null }
+    return { changes, terminals, error: null }
   } catch (error) {
-    return { changes, error }
+    return { changes, terminals, error }
   }
 }
 
@@ -90,7 +104,7 @@ async function runAction(action: StepAction, ctx: Context): Promise<void> {
     case 'TERMINAL':
       return runTerminalAction(action, ctx)
     case 'WAIT':
-      return runWaitAction(action)
+      return runWaitAction(action, ctx)
     case 'SLIDE':
       return runSlideAction(action)
     case 'HIGHLIGHT':
@@ -102,6 +116,22 @@ async function runAction(action: StepAction, ctx: Context): Promise<void> {
     case 'OBS_SCENE':
       if (action.scene.trim()) window.api.obsSetScene(action.scene.trim())
       return
+  }
+}
+
+/**
+ * Stops what a step left running in the terminals: terminals the step opened are
+ * closed, the others get Ctrl+C (stops a server or any command still running).
+ */
+export function stopTerminals(uses: TerminalUse[]): void {
+  const store = useTerminalStore.getState()
+  for (const use of [...uses].reverse()) {
+    if (use.created) {
+      if (store.sessions.length > 1) store.remove(use.key)
+      continue
+    }
+    const id = getTerminalId(use.key)
+    if (id !== null) window.api.sendTerminalInput(id, '\x03')
   }
 }
 
@@ -389,9 +419,14 @@ async function typeInto(
 
 // --- Terminal ----------------------------------------------------------------
 
-async function terminalFor(name: string | undefined): Promise<{ key: string; id: number }> {
+async function terminalFor(
+  name: string | undefined,
+  ctx: Context
+): Promise<{ key: string; id: number }> {
   const terminals = useTerminalStore.getState()
+  const created = !terminals.has(name)
   const key = terminals.ensure(name)
+  ctx.useTerminal({ key, created })
   terminals.setActive(key)
   useIDEStore.getState().setTerminalVisible(true)
   for (let elapsed = 0; elapsed < 5000; elapsed += 50) {
@@ -406,7 +441,7 @@ async function runTerminalAction(action: TerminalAction, ctx: Context): Promise<
   const command = resolvePlaceholders(action.command).replace(/\r?\n/g, '\r')
   if (!command.trim()) throw new StepError('Este passo não tem nenhum comando.')
 
-  const { key, id } = await terminalFor(action.terminal)
+  const { key, id } = await terminalFor(action.terminal, ctx)
   const stage = useStageStore.getState()
   stage.setTerminal(key)
   stage.setView('terminal', true)
@@ -441,10 +476,10 @@ function matchesOutput(output: string, pattern: string): boolean {
   return output.toLowerCase().includes(pattern.toLowerCase())
 }
 
-async function runWaitAction(action: WaitAction): Promise<void> {
+async function runWaitAction(action: WaitAction, ctx: Context): Promise<void> {
   const pattern = action.pattern.trim()
   if (!pattern) throw new StepError('Informe o texto que deve aparecer no terminal.')
-  const { id } = await terminalFor(action.terminal)
+  const { id } = await terminalFor(action.terminal, ctx)
   const timeout = Math.max(1, action.timeoutSec || 60) * 1000
   for (let elapsed = 0; elapsed < timeout; elapsed += 100) {
     if (skipRequested) return

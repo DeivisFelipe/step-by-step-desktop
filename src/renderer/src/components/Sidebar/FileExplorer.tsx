@@ -9,13 +9,14 @@ import {
   useSensor,
   useSensors
 } from '@dnd-kit/core'
-import { FilePlus, FolderOpen, FolderPlus, ListCollapse, RefreshCw } from 'lucide-react'
+import { FilePlus, FolderPlus, ListCollapse, RefreshCw } from 'lucide-react'
 import { FileNode, useFileSystemStore } from '../../store/useFileSystemStore'
 import { reportError } from '../../store/useIDEStore'
 import { basename, dirname, isInside, joinPath, samePath } from '../../lib/paths'
 import { chooseWorkspace, getRecentFolders, openWorkspace } from '../../lib/workspace'
 import ContextMenu, { ContextMenuItem } from '../UI/ContextMenu'
 import { SidebarHeader } from './FileExplorerHeader'
+import ProjectMenu from '../ProjectMenu'
 import { EditingState, FileItem } from './FileItem'
 import { FileInput } from './FileInput'
 
@@ -180,8 +181,13 @@ const FileExplorer = (): React.JSX.Element => {
 
   return (
     <div className="flex h-full flex-col">
+      {rootPath && (
+        <div className="flex-none px-3 pt-2">
+          <ProjectMenu className="flex w-full items-center gap-1.5 rounded border border-ide-border bg-ide-bg px-2 py-1 text-left text-[12px] text-gray-200 hover:border-ide-accent [&>svg:last-child]:ml-auto" />
+        </div>
+      )}
       <SidebarHeader
-        title={rootPath ? basename(rootPath) : 'Explorador'}
+        title={rootPath ? 'Arquivos' : 'Explorador'}
         actions={
           rootPath
             ? [
@@ -204,8 +210,7 @@ const FileExplorer = (): React.JSX.Element => {
                   icon: ListCollapse,
                   title: 'Recolher pastas',
                   onClick: () => useFileSystemStore.getState().collapseAll()
-                },
-                { icon: FolderOpen, title: 'Abrir outra pasta (Ctrl+O)', onClick: chooseWorkspace }
+                }
               ]
             : []
         }

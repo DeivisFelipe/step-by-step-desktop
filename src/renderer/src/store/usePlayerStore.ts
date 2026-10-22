@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import {
   executeStep,
   FileChange,
+  stopTerminals,
+  TerminalUse,
   revertChanges,
   skipAnimation,
   StepError
@@ -14,12 +16,15 @@ import { reportError, SPECIAL_TAB_IDS, useIDEStore } from './useIDEStore'
 import { StageSnapshot, useStageStore } from './useStageStore'
 import { useFileSystemStore } from './useFileSystemStore'
 import { useSettingsStore } from './useSettingsStore'
+import { useTerminalStore } from './useTerminalStore'
 
 interface HistoryEntry {
   stepId: string
   changes: FileChange[]
   /** Stage before the step ran, restored on undo. */
   stage: StageSnapshot
+  /** Terminals the step used; undo stops what it left running there. */
+  terminals?: TerminalUse[]
 }
 
 interface Chapter {
@@ -131,6 +136,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       // A failed step leaves the project as it was (terminal commands excepted).
       try {
         await revertChanges(run.changes)
+        stopTerminals(run.terminals)
         useStageStore.getState().restore(stageBefore)
         closeStageTabs(stageBefore)
       } catch {
@@ -138,7 +144,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       }
     } else {
       set((state) => ({
-        history: [...state.history, { stepId: id, changes: run.changes, stage: stageBefore }]
+        history: [
+          ...state.history,
+          { stepId: id, changes: run.changes, stage: stageBefore, terminals: run.terminals }
+        ]
       }))
     }
     set({ runningStepId: null })
@@ -169,12 +178,18 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     if (!last) return false
     try {
       await revertChanges(last.changes)
+      stopTerminals(last.terminals ?? [])
       useStageStore.getState().restore(last.stage)
       closeStageTabs(last.stage)
       set((state) => ({ history: state.history.slice(0, -1) }))
-      const step = findNode(useLessonStore.getState().tree, last.stepId)
-      if (step?.data?.actions.some((a) => a.kind === 'TERMINAL')) {
-        useIDEStore.getState().notify('Comandos de terminal não podem ser desfeitos.', 'info')
+      if (last.terminals?.length) {
+        useIDEStore
+          .getState()
+          .notify(
+            'O que o passo deixou rodando no terminal foi interrompido (Ctrl+C). Efeitos de comandos, como pacotes instalados, não são desfeitos.',
+            'info',
+            6000
+          )
       }
       return true
     } catch (e) {
@@ -216,8 +231,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       type: 'question',
       message: 'Resetar a aula?',
       detail: hasSnapshot
-        ? 'O projeto volta exatamente ao estado de antes do primeiro passo: arquivos criados durante a aula são apagados e os alterados são restaurados (node_modules e .git são preservados).'
-        : 'Os arquivos alterados pelos passos executados voltam ao estado original.',
+        ? 'O projeto volta exatamente ao estado de antes do primeiro passo: arquivos criados durante a aula são apagados e os alterados são restaurados (node_modules e .git são preservados). Os terminais são reiniciados, então servidores iniciados na aula param.'
+        : 'Os arquivos alterados pelos passos executados voltam ao estado original e os terminais são reiniciados.',
       buttons: ['Resetar', 'Cancelar'],
       defaultId: 0,
       cancelId: 1
@@ -244,6 +259,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     }
     useStageStore.getState().reset()
     closeStageTabs(useStageStore.getState().snapshot())
+    // Fresh terminals: servers and other processes started by the lesson stop.
+    useTerminalStore.getState().resetAll()
     set({ history: [], sessionStartedAt: null, stepStartedAt: null, chapters: [] })
     useIDEStore.getState().notify('Aula resetada.', 'success')
   },

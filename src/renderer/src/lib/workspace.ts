@@ -3,6 +3,7 @@ import { reportError, useIDEStore } from '../store/useIDEStore'
 import { useLessonStore } from '../store/useLessonStore'
 import { usePlayerStore } from '../store/usePlayerStore'
 import { useStageStore } from '../store/useStageStore'
+import { useTerminalStore } from '../store/useTerminalStore'
 import { basename } from './paths'
 
 const RECENT_KEY = 'ssc-recent-folders'
@@ -68,6 +69,7 @@ export async function openWorkspace(path: string): Promise<void> {
   try {
     useIDEStore.getState().closeAllTabs()
     useStageStore.getState().reset()
+    useTerminalStore.getState().resetAll()
     await useFileSystemStore.getState().openFolder(path)
     window.api.setWorkspaceRoot(path)
     await useLessonStore.getState().loadForWorkspace(path)
@@ -77,6 +79,20 @@ export async function openWorkspace(path: string): Promise<void> {
   } catch (e) {
     reportError(e, 'Não foi possível abrir a pasta')
   }
+}
+
+/** Closes the current project and goes back to the start screen. */
+export async function closeWorkspace(): Promise<void> {
+  if (!useFileSystemStore.getState().rootPath) return
+  if (!(await confirmUnsavedChanges())) return
+  useIDEStore.getState().closeAllTabs()
+  useStageStore.getState().reset()
+  usePlayerStore.getState().clear()
+  useTerminalStore.getState().resetAll()
+  await useLessonStore.getState().closeWorkspace()
+  useFileSystemStore.getState().closeFolder()
+  window.api.setWorkspaceRoot(null)
+  document.title = 'Step-by-Step Code'
 }
 
 export async function chooseWorkspace(): Promise<void> {

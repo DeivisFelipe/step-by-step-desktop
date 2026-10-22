@@ -16,7 +16,9 @@ function App(): React.JSX.Element {
     initSettings()
     startPublisher()
     startRemoteControl()
-    restoreLastWorkspace()
+    window.api.getSettings().then((settings) => {
+      if (settings.reopenLastProject) restoreLastWorkspace()
+    })
   }, [])
 
   // Projector mode: everything bigger for the back of the room.

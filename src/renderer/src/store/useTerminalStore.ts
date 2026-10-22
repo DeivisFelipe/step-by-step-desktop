@@ -10,6 +10,8 @@ export interface TerminalSession {
 interface TerminalStore {
   sessions: TerminalSession[]
   activeKey: string
+  /** Show every terminal side by side instead of tabs. */
+  split: boolean
 
   add: (name?: string) => string
   remove: (key: string) => void
@@ -19,6 +21,11 @@ interface TerminalStore {
   setShell: (key: string, shell: string) => void
   /** Finds a terminal by name, creating it when missing. No name = the active one. */
   ensure: (name?: string) => string
+  /** Whether a terminal with this name exists (no name = the active one, always true). */
+  has: (name?: string) => boolean
+  setSplit: (split: boolean) => void
+  /** Closes every terminal and starts a single fresh one (used by "Reset"). */
+  resetAll: () => void
 }
 
 let counter = 1
@@ -26,6 +33,7 @@ let counter = 1
 export const useTerminalStore = create<TerminalStore>((set, get) => ({
   sessions: [{ key: 't1', name: 'Terminal 1' }],
   activeKey: 't1',
+  split: false,
 
   add: (name) => {
     counter++
@@ -58,6 +66,20 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
     set((state) => ({
       sessions: state.sessions.map((s) => (s.key === key ? { ...s, shell } : s))
     })),
+
+  has: (name) => {
+    if (!name?.trim()) return true
+    return get().sessions.some((s) => s.name.toLowerCase() === name.trim().toLowerCase())
+  },
+
+  setSplit: (split) => set({ split }),
+
+  resetAll: () => {
+    counter++
+    // A new key remounts the terminal, which kills the old shell and its processes.
+    const key = `t${Date.now()}-${counter}`
+    set({ sessions: [{ key, name: 'Terminal 1' }], activeKey: key })
+  },
 
   ensure: (name) => {
     const { sessions, activeKey } = get()

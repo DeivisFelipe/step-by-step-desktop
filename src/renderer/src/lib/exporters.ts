@@ -29,7 +29,8 @@ export async function exportLessonMarkdown(): Promise<void> {
   const { tree, title } = useLessonStore.getState()
   try {
     await window.api.writeFile(path, lessonToMarkdown(tree, title))
-    useIDEStore.getState().notify('Aula exportada.', 'success')
+    useIDEStore.getState().notify(`Aula exportada para ${basename(path)}.`, 'success')
+    window.api.reveal(path)
   } catch (e) {
     reportError(e, 'Não foi possível exportar')
   }
@@ -60,7 +61,14 @@ export async function importLessonMarkdown(): Promise<void> {
   if (choice === 2) return
   if (choice === 1) lesson.replaceTree(tree, title || lesson.title)
   else lesson.appendNodes(tree)
-  useIDEStore.getState().setActiveActivity('STEPS')
+  // Show where the imported steps are.
+  const ide = useIDEStore.getState()
+  ide.setActiveActivity('STEPS')
+  const firstFlow = tree.find((n) => n.type === 'FLOW')
+  if (firstFlow) {
+    useLessonStore.getState().selectNode(firstFlow.id)
+    ide.openNodeTab(firstFlow.id, 'FLOW')
+  }
   useIDEStore.getState().notify(`${steps} passo(s) importado(s).`, 'success')
 }
 
@@ -97,7 +105,8 @@ export async function exportHandout(format: 'md' | 'pdf'): Promise<void> {
       const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${name}</title><style>${HANDOUT_CSS}</style></head><body>${renderMarkdown(markdown)}</body></html>`
       await window.api.exportPdf(html, path)
     }
-    useIDEStore.getState().notify('Apostila exportada.', 'success')
+    useIDEStore.getState().notify(`Apostila salva em ${basename(path)}.`, 'success')
+    window.api.reveal(path)
   } catch (e) {
     reportError(e, 'Não foi possível exportar a apostila')
   }
@@ -155,7 +164,9 @@ async function simulateSteps(root: string): Promise<GitExportStep[]> {
 export async function exportGitRepository(): Promise<void> {
   const root = useFileSystemStore.getState().rootPath
   if (!root) return
-  const target = await window.api.openFolder()
+  const target = await window.api.openFolder(
+    'Escolha uma pasta vazia para o repositório (crie uma nova se precisar)'
+  )
   if (!target) return
   try {
     const steps = await simulateSteps(root)
@@ -163,6 +174,7 @@ export async function exportGitRepository(): Promise<void> {
     useIDEStore
       .getState()
       .notify(`Repositório criado com ${steps.length + 1} commits em ${target}.`, 'success', 8000)
+    window.api.reveal(target)
   } catch (e) {
     reportError(e, 'Não foi possível criar o repositório')
   }

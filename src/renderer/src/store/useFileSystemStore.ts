@@ -27,6 +27,7 @@ interface FileSystemState {
   files: Record<string, OpenFile>
 
   openFolder: (path: string) => Promise<void>
+  closeFolder: () => void
   refreshTree: () => Promise<void>
   toggleDirectory: (path: string) => Promise<void>
   expandTo: (path: string) => Promise<void>
@@ -72,6 +73,9 @@ export const useFileSystemStore = create<FileSystemState>((set, get) => ({
   expanded: {},
   selectedPath: null,
   files: {},
+
+  closeFolder: () =>
+    set({ rootPath: null, fileTree: [], expanded: {}, selectedPath: null, files: {} }),
 
   openFolder: async (path) => {
     set({ rootPath: path, fileTree: [], expanded: {}, selectedPath: null, files: {} })

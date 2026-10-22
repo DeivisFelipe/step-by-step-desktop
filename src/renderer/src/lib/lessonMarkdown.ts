@@ -373,7 +373,17 @@ export function lessonToHandout(tree: LessonNode[], title: string, workspaceName
           out.push(fence('bash', resolvePlaceholders(action.command)) + '\n')
           break
         case 'SLIDE':
-          if (action.markdown.trim()) out.push(action.markdown.trim() + '\n')
+          // Slide headings become small headings so they don't break the handout outline.
+          if (action.markdown.trim()) {
+            const demoted = action.markdown
+              .trim()
+              .replace(
+                /^(#{1,6})\s+(.*)$/gm,
+                (_m, hashes: string, text: string) =>
+                  `${'#'.repeat(Math.min(6, hashes.length + 3))} ${text}`
+              )
+            out.push(demoted + '\n')
+          }
           break
         case 'HIGHLIGHT':
           out.push(
