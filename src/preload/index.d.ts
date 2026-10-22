@@ -36,7 +36,7 @@ export interface MessageOptions {
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
 
 export interface CustomAPI {
-  openFolder: () => Promise<string | null>
+  openFolder: (title?: string) => Promise<string | null>
   readDir: (path: string) => Promise<DirEntry[]>
   exists: (path: string) => Promise<boolean>
   /** Resolves to null when the file does not exist or cannot be read. */

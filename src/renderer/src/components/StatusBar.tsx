@@ -2,25 +2,21 @@ import {
   AlertCircle,
   ArrowDownCircle,
   Check,
-  FolderOpen,
   Loader2,
   SkipForward,
   TerminalSquare
 } from 'lucide-react'
-import { useFileSystemStore } from '../store/useFileSystemStore'
 import { useIDEStore } from '../store/useIDEStore'
 import { useLessonStore } from '../store/useLessonStore'
 import { usePlayerStore } from '../store/usePlayerStore'
 import { findNode, flattenSteps } from '../lib/tree'
-import { basename } from '../lib/paths'
-import { chooseWorkspace } from '../lib/workspace'
+import ProjectMenu from './ProjectMenu'
 import { restartToUpdate } from '../lib/updates'
 import { useSettingsStore } from '../store/useSettingsStore'
 
 const item = 'flex h-full items-center gap-1 px-2 hover:bg-white/10'
 
 const StatusBar = (): React.JSX.Element => {
-  const rootPath = useFileSystemStore((s) => s.rootPath)
   const saveState = useLessonStore((s) => s.saveState)
   const workspace = useLessonStore((s) => s.workspace)
   const tree = useLessonStore((s) => s.tree)
@@ -34,10 +30,7 @@ const StatusBar = (): React.JSX.Element => {
 
   return (
     <div className="flex h-6 flex-none items-center bg-ide-accent text-[12px] text-white">
-      <button className={item} onClick={chooseWorkspace} title={rootPath ?? 'Abrir pasta'}>
-        <FolderOpen size={13} />
-        {rootPath ? basename(rootPath) : 'Nenhuma pasta aberta'}
-      </button>
+      <ProjectMenu className={item} />
       {workspace && (
         <span className="flex items-center gap-1 px-2 opacity-90">
           {saveState === 'saving' ? (

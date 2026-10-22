@@ -4,7 +4,9 @@ import {
   Connection,
   Controls,
   Edge,
+  EdgeChange,
   MarkerType,
+  NodeChange,
   ReactFlow,
   ReactFlowInstance
 } from '@xyflow/react'
@@ -43,6 +45,10 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
   const history = usePlayerStore((s) => s.history)
   const runningStepId = usePlayerStore((s) => s.runningStepId)
   const [menu, setMenu] = useState<FlowMenuState | null>(null)
+  /** Node being dragged and where it is, until it is dropped. */
+  const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null)
+  /** Edges are derived from the steps, so their selection lives here. */
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
   const instanceRef = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null)
 
   const flow = findNode(tree, flowId)
@@ -66,8 +72,11 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
         (step, index): StepFlowNode => ({
           id: step.id,
           type: 'step',
-          position: { x: START_X + 130 + index * SPACING_X, y: ROW_Y },
-          draggable: false,
+          position:
+            drag?.id === step.id
+              ? { x: drag.x, y: drag.y }
+              : { x: START_X + 130 + index * SPACING_X, y: ROW_Y },
+          draggable: true,
           deletable: false,
           selected: step.id === selectedNodeId,
           data: {
@@ -83,7 +92,7 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
         })
       )
     ]
-  }, [steps, tree, history, selectedNodeId, rootPath, runningStepId])
+  }, [steps, tree, history, selectedNodeId, rootPath, runningStepId, drag])
 
   const edges = useMemo<Edge[]>(() => {
     const ids = [START_ID, ...steps.map((s) => s.id)]
@@ -93,10 +102,11 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
       target,
       sourceHandle: 'r',
       targetHandle: 'l',
-      deletable: false,
+      deletable: true,
+      selected: `e-${ids[i]}-${target}` === selectedEdge,
       ...edgeOptions
     }))
-  }, [steps])
+  }, [steps, selectedEdge])
 
   // Re-fit the view when steps are added or removed.
   useEffect(() => {
@@ -118,6 +128,51 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
     [flowId]
   )
 
+  /** Dragging a step left or right changes its position in the flow. */
+  const onNodesChange = useCallback(
+    (changes: NodeChange<FlowNode>[]) => {
+      for (const change of changes) {
+        if (change.type !== 'position' || change.id === START_ID) continue
+        if (change.dragging && change.position) {
+          setDrag({ id: change.id, x: change.position.x, y: change.position.y })
+        } else if (change.dragging === false) {
+          setDrag((current) => {
+            if (current?.id === change.id) {
+              const others = steps.filter((s) => s.id !== change.id)
+              const slot = Math.round((current.x - START_X - 130) / SPACING_X)
+              const index = Math.max(0, Math.min(others.length, slot))
+              const lesson = useLessonStore.getState()
+              if (index === 0) lesson.placeFirst(change.id, flowId)
+              else lesson.placeAfter(change.id, others[index - 1].id)
+            }
+            return null
+          })
+        }
+      }
+    },
+    [steps, flowId]
+  )
+
+  /** Removing the link A → B sends B to the end of the flow. */
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange<Edge>[]) => {
+      const lesson = useLessonStore.getState()
+      for (const change of changes) {
+        if (change.type === 'select') {
+          setSelectedEdge((current) =>
+            change.selected ? change.id : current === change.id ? null : current
+          )
+        }
+        if (change.type !== 'remove') continue
+        setSelectedEdge(null)
+        const edge = edges.find((e) => e.id === change.id)
+        const last = steps[steps.length - 1]
+        if (edge && last && edge.target !== last.id) lesson.placeAfter(edge.target, last.id)
+      }
+    },
+    [edges, steps]
+  )
+
   if (!flow || flow.type !== 'FLOW') {
     return (
       <div className="flex h-full items-center justify-center text-sm text-ide-muted">
@@ -133,10 +188,12 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
 
   return (
     <div className="relative h-full w-full">
-      <div className="pointer-events-none absolute left-4 top-3 z-10">
+      <div className="pointer-events-none absolute left-4 right-40 top-3 z-10">
         <div className="text-lg font-light text-white">{flow.title}</div>
         <div className="text-[12px] text-ide-muted">
-          Arraste de um passo para outro para mudar a ordem · duplo clique para editar
+          Arraste um passo para os lados para mudar a ordem · ligue a saída de um passo à entrada de
+          outro para colocá-lo depois · clique numa ligação e aperte Delete para mandar o passo para
+          o fim · duplo clique para editar
         </div>
       </div>
       <button
@@ -155,6 +212,8 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
           instance.fitView({ padding: 0.3, maxZoom: 1.2 })
         }}
         onConnect={onConnect}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         onNodeClick={(_, node) =>
           node.id !== START_ID && useLessonStore.getState().selectNode(node.id)
         }
@@ -170,14 +229,18 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
           e.preventDefault()
           setMenu({ x: e.clientX, y: e.clientY })
         }}
+        onEdgeContextMenu={(e, edge) => {
+          e.preventDefault()
+          setMenu({ x: e.clientX, y: e.clientY, edgeTarget: edge.target })
+        }}
         onNodeContextMenu={(e, node) => {
           e.preventDefault()
           if (node.id === START_ID) return
           useLessonStore.getState().selectNode(node.id)
           setMenu({ x: e.clientX, y: e.clientY, stepId: node.id })
         }}
-        nodesDraggable={false}
-        deleteKeyCode={null}
+        nodesDraggable
+        deleteKeyCode={['Delete', 'Backspace']}
         colorMode="dark"
         minZoom={0.2}
         proOptions={{ hideAttribution: true }}

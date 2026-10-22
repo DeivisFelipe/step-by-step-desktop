@@ -27,13 +27,17 @@ function useGlobalShortcuts(): void {
       const clicker = useSettingsStore.getState().settings.keys.clicker
       const ctrl = e.ctrlKey || e.metaKey
       const key = e.key.toLowerCase()
+      const target = e.target as HTMLElement | null
+      // Form fields keep PageUp/PageDown; the code editor (presenting) does not.
+      const inForm =
+        !!target?.matches?.('input, select, textarea') && !target.closest('.monaco-editor')
       let handled = true
 
       if (e.key === 'F8' && !e.shiftKey) player.runNext()
       else if (e.key === 'F8' && e.shiftKey) player.undoLast()
       // Presentation clickers send PageDown / PageUp.
-      else if (clicker && e.key === 'PageDown' && !ctrl) player.runNext()
-      else if (clicker && e.key === 'PageUp' && !ctrl) player.undoLast()
+      else if (clicker && !inForm && e.key === 'PageDown' && !ctrl) player.runNext()
+      else if (clicker && !inForm && e.key === 'PageUp' && !ctrl) player.undoLast()
       else if (e.key === 'F6') annotator.toggle('pen')
       else if (e.key === 'F7') annotator.toggle('spotlight')
       else if (e.key === 'Escape' && player.runningStepId) player.skip()

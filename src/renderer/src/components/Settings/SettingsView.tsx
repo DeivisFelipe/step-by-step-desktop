@@ -501,6 +501,16 @@ const GeneralSection = (): React.JSX.Element => {
           PageDown avança e PageUp volta (as teclas que os passadores enviam)
         </span>
       </Row>
+      <Row label="Ao abrir o app">
+        <select
+          className={input}
+          value={settings.reopenLastProject ? 'last' : 'start'}
+          onChange={(e) => update({ reopenLastProject: e.target.value === 'last' })}
+        >
+          <option value="start">Mostrar a tela inicial com os projetos recentes</option>
+          <option value="last">Reabrir o último projeto</option>
+        </select>
+      </Row>
       <Row label="Modo projetor">
         <input
           type="checkbox"

@@ -43,21 +43,36 @@ function StaticCode({
                 children: [{ type: 'text', value: String(line) }]
               } as ElementContent)
             }
-            if (highlight?.note && line === highlight.endLine) {
-              node.children.push({
-                type: 'element',
-                tagName: 'span',
-                properties: { style: 'display:inline-block;width:100%' },
-                children: [
-                  {
-                    type: 'element',
-                    tagName: 'span',
-                    properties: { class: 'ssc-note' },
-                    children: [{ type: 'text', value: highlight.note }]
-                  }
-                ]
-              } as ElementContent)
-            }
+          },
+          // The note goes in its own block right below the last highlighted line,
+          // like the balloon in the IDE editor.
+          code(node: Element) {
+            if (!highlight?.note) return
+            let seen = 0
+            const index = node.children.findIndex(
+              (child) =>
+                child.type === 'element' &&
+                String(child.properties?.class ?? '').includes('line') &&
+                ++seen === highlight.endLine
+            )
+            if (index === -1) return
+            const after = node.children[index + 1]?.type === 'text' ? index + 2 : index + 1
+            node.children.splice(after, 0, {
+              type: 'element',
+              tagName: 'span',
+              properties: {
+                class: 'ssc-note-row',
+                style: style.lineNumbers ? 'padding-left:3.7em' : ''
+              },
+              children: [
+                {
+                  type: 'element',
+                  tagName: 'span',
+                  properties: { class: 'ssc-note' },
+                  children: [{ type: 'text', value: highlight.note }]
+                }
+              ]
+            } as ElementContent)
           }
         }
       ]

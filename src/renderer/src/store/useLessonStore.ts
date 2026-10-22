@@ -37,6 +37,8 @@ interface LessonStore {
   saveState: 'saved' | 'saving' | 'error'
 
   loadForWorkspace: (root: string) => Promise<void>
+  /** Saves pending changes and goes back to an empty, unsaved lesson. */
+  closeWorkspace: () => Promise<void>
   selectNode: (id: string | null) => void
 
   /**
@@ -84,6 +86,17 @@ export const useLessonStore = create<LessonStore>((set, get) => ({
   selectedNodeId: null,
   workspace: null,
   saveState: 'saved',
+
+  closeWorkspace: async () => {
+    await flushLessonSave()
+    set({
+      tree: initialTree(),
+      title: '',
+      selectedNodeId: null,
+      workspace: null,
+      saveState: 'saved'
+    })
+  },
 
   loadForWorkspace: async (root) => {
     await flushLessonSave()

@@ -135,6 +135,8 @@ export interface AppSettings {
     clicker: boolean
   }
   projector: boolean
+  /** Reopen the last project when the app starts (otherwise show the start screen). */
+  reopenLastProject: boolean
 }
 
 export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
@@ -250,7 +252,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
     scenes: {}
   },
   keys: { clicker: true },
-  projector: false
+  projector: false,
+  reopenLastProject: false
 }
 
 /** Paths served by the presentation server and their purpose. */
