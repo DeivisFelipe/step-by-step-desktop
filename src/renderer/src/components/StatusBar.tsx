@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { useIDEStore } from '../store/useIDEStore'
 import { useLessonStore } from '../store/useLessonStore'
-import { usePlayerStore } from '../store/usePlayerStore'
+import { executedCount, usePlayerStore } from '../store/usePlayerStore'
 import { usePauseStore } from '../engine/ExecutionEngine'
 import { findNode, flattenSteps } from '../lib/tree'
 import ProjectMenu from './ProjectMenu'
@@ -94,7 +94,7 @@ const StatusBar = (): React.JSX.Element => {
         onClick={() => usePlayerStore.getState().runNext()}
         title="Executar o próximo passo (F8)"
       >
-        <SkipForward size={13} /> Passo {history.length}/{total}
+        <SkipForward size={13} /> Passo {executedCount(history)}/{total}
       </button>
       <button
         className={item}

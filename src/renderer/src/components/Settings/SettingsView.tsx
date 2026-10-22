@@ -9,6 +9,8 @@ import {
   BUILTIN_PRESETS,
   PresentationStyle,
   SHIKI_THEMES,
+  SLIDE_TRANSITIONS,
+  SlideTransition,
   StageView,
   resolveStyle
 } from '../../../../shared/presentation'
@@ -246,6 +248,42 @@ const StyleEditor = (): React.JSX.Element => {
               className="flex-1 accent-sky-500"
             />
             <span className="w-10 text-right tabular-nums">{style.slideFontSize}px</span>
+          </Row>
+          <Row label="Transição dos slides">
+            <select
+              className={input}
+              value={style.slideTransition}
+              onChange={(e) => save({ slideTransition: e.target.value as SlideTransition })}
+            >
+              {SLIDE_TRANSITIONS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </Row>
+          <Row label="Duração da transição">
+            <input
+              type="range"
+              min={200}
+              max={2000}
+              step={100}
+              value={style.slideTransitionMs}
+              onChange={(e) => save({ slideTransitionMs: Number(e.target.value) })}
+              className="flex-1 accent-sky-500"
+            />
+            <span className="w-14 text-right tabular-nums">{style.slideTransitionMs} ms</span>
+          </Row>
+          <Row label="Slides em tela cheia">
+            <input
+              type="checkbox"
+              className="accent-sky-500"
+              checked={style.slideFullscreen}
+              onChange={(e) => save({ slideFullscreen: e.target.checked })}
+            />
+            <span className="text-[12px] text-ide-muted">
+              ocupam a página inteira, sem margens (cada slide pode mudar isso)
+            </span>
           </Row>
           <Row label="Espaçamento">
             <input

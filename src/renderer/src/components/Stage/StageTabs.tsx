@@ -3,7 +3,7 @@ import { ExternalLink, RotateCw } from 'lucide-react'
 import { useStageStore } from '../../store/useStageStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { resolveStyle } from '../../../../shared/presentation'
-import { ChallengeView, SlideView } from '../../../common/StageViews'
+import { ChallengeView, SlideView, TransitionStack } from '../../../common/StageViews'
 
 const Empty = ({ text }: { text: string }): React.JSX.Element => (
   <div className="flex h-full items-center justify-center text-sm text-ide-muted">{text}</div>
@@ -19,10 +19,19 @@ function useStageBackground(): string {
 export const SlideTab = (): React.JSX.Element => {
   const slide = useStageStore((s) => s.slide)
   const background = useStageBackground()
+  const settings = useSettingsStore((s) => s.settings)
+  const server = useSettingsStore((s) => s.server?.localUrl ?? '')
+  const style = resolveStyle(settings)
   if (!slide) return <Empty text="Nenhum slide em exibição." />
   return (
     <div className="h-full w-full text-white" style={{ background }}>
-      <SlideView slide={slide} fontSize={30} />
+      <TransitionStack
+        itemKey={slide.key}
+        data={slide}
+        transition={slide.transition ?? style.slideTransition}
+        duration={style.slideTransitionMs}
+        render={(s) => <SlideView slide={s} fontSize={30} server={server} />}
+      />
     </div>
   )
 }

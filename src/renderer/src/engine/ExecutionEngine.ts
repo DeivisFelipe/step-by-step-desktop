@@ -533,9 +533,18 @@ export function resolveAssetUrl(value: string | undefined): string | undefined {
 }
 
 async function runSlideAction(action: SlideAction): Promise<void> {
+  const html = action.format === 'html' ? resolvePlaceholders(action.html ?? '') : ''
+  if (action.format === 'html' && !html.trim()) {
+    throw new StepError('O slide em HTML está vazio.')
+  }
   useStageStore.getState().showSlide({
-    markdown: resolvePlaceholders(action.markdown),
-    image: resolveAssetUrl(action.image)
+    markdown: html ? '' : resolvePlaceholders(action.markdown),
+    image: html ? undefined : resolveAssetUrl(action.image),
+    htmlPath: html ? await window.api.registerSlide(html) : undefined,
+    html: html || undefined,
+    transition: action.transition || undefined,
+    fullscreen: action.fullscreen,
+    key: Date.now()
   })
   useIDEStore.getState().openSpecialTab('SLIDE')
 }

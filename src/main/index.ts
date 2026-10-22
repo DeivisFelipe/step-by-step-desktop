@@ -386,6 +386,7 @@ function setupPresentationHandlers(): void {
   ipcMain.handle('settings:save-preset', (_, name: string, style) => savePreset(name, style))
 
   ipcMain.handle('server:info', () => server.info())
+  ipcMain.handle('slide:register', (_, html: string) => server.registerSlide(html))
   ipcMain.on('stage:publish', (_, payload: StagePayload) => server.publishStage(payload))
   ipcMain.on('presenter:publish', (_, payload: PresenterPayload) =>
     server.publishPresenter(payload)

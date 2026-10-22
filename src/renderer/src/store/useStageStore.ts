@@ -77,6 +77,10 @@ export const useStageStore = create<StageStore>((set, get) => ({
     const { view, slide, challenge, preview, highlight, terminalKey } = get()
     return { view, slide, challenge, preview, highlight, terminalKey }
   },
-  restore: (snapshot) => set({ ...snapshot }),
+  restore: (snapshot) => {
+    // HTML slides live in the server's memory: serve it again (e.g. after a restart).
+    if (snapshot.slide?.html) window.api.registerSlide(snapshot.slide.html)
+    set({ ...snapshot })
+  },
   reset: () => set({ ...EMPTY, codeTransition: 'typing', flash: null })
 }))

@@ -1,3 +1,5 @@
+import type { SlideTransition } from '../../../shared/presentation'
+
 export type NodeType = 'FLOW' | 'STEP'
 
 export interface LessonNode {
@@ -86,9 +88,17 @@ export interface WaitAction {
 export interface SlideAction {
   id: string
   kind: 'SLIDE'
+  /** Markdown (default) or HTML with its own styles, scripts and animations. */
+  format?: 'markdown' | 'html'
   markdown: string
-  /** Image path relative to the workspace, or a URL. */
+  /** Image path relative to the workspace, or a URL (Markdown slides). */
   image?: string
+  /** HTML slide, designed for 1920×1080. Relative paths point to the workspace. */
+  html?: string
+  /** Empty = the presentation style's transition. */
+  transition?: SlideTransition
+  /** Empty = the presentation style's option. */
+  fullscreen?: boolean
 }
 
 /** Focuses a range of lines of a file, dimming the rest. */

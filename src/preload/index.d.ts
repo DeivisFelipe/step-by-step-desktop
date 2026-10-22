@@ -72,6 +72,8 @@ export interface CustomAPI {
   onSettingsChanged: (callback: (settings: AppSettings) => void) => () => void
 
   getServerInfo: () => Promise<ServerInfo>
+  /** Serves an HTML slide from the presentation server; returns its path. */
+  registerSlide: (html: string) => Promise<string>
   onServerInfo: (callback: (info: ServerInfo) => void) => () => void
   publishStage: (payload: StagePayload) => void
   publishPresenter: (payload: PresenterPayload) => void

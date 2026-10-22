@@ -72,6 +72,11 @@ export function getNextStep(tree: LessonNode[], history: HistoryEntry[]): Lesson
   return index === -1 ? null : (steps[index + 1] ?? null)
 }
 
+/** Steps already executed; a step run again (double click) counts once. */
+export function executedCount(history: HistoryEntry[]): number {
+  return new Set(history.map((h) => h.stepId)).size
+}
+
 /** The step whose caption is on stage: the running one, or the last executed. */
 export function getCurrentStep(
   tree: LessonNode[],

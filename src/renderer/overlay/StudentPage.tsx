@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Check, Copy, Wifi, WifiOff } from 'lucide-react'
 import { ChallengeView, Markdown, SlideView } from '../common/StageViews'
-import { useConnection } from './connection'
+import { SERVER, useConnection } from './connection'
 import { useHighlighter } from './highlighter'
 import { StaticCode } from './CodeContent'
 import { TerminalContent } from './TerminalContent'
@@ -54,7 +54,7 @@ const StudentPage = (): React.JSX.Element => {
 
         {stage?.view === 'slide' && stage.slide && (
           <div className="aspect-video overflow-hidden rounded-lg bg-[#1f2937]">
-            <SlideView slide={stage.slide} fontSize={16} />
+            <SlideView slide={stage.slide} fontSize={16} server={SERVER} />
           </div>
         )}
         {stage?.view === 'challenge' && stage.challenge && (

@@ -1,6 +1,7 @@
 import { FileAction, FileAnimation, FileOperation, LessonNode, StepAction } from '../types/schema'
 import { defaultAction, flattenSteps, newId, resolvePlaceholders } from './tree'
 import { languageFromPath } from './paths'
+import { SLIDE_TRANSITIONS, SlideTransition } from '../../../shared/presentation'
 
 // Lessons as Markdown: easy to write in any editor, review and share.
 //
@@ -12,6 +13,7 @@ import { languageFromPath } from './paths'
 //   ```terminal nome="Servidor"  → terminal command (one per line)
 //   ```esperar tempo="60"        → wait for text in the terminal
 //   ```slide imagem="a.png"      → slide (Markdown)
+//   ```slide formato="html" transicao="zoom" telacheia="sim" → HTML slide
 //   ```destacar arquivo="a.js" linhas="3-5"  → highlight (body = note)
 //   ```desafio tempo="5"         → challenge (minutes; body = statement)
 //   ```preview                   → preview (body = URL or file)
@@ -91,8 +93,14 @@ function serializeAction(action: StepAction): string {
         'esperar' + attr('nome', action.terminal) + attr('tempo', action.timeoutSec),
         action.pattern
       )
-    case 'SLIDE':
-      return fence('slide' + attr('imagem', action.image), action.markdown)
+    case 'SLIDE': {
+      const options =
+        attr('transicao', action.transition) +
+        attr('telacheia', action.fullscreen === undefined ? '' : action.fullscreen ? 'sim' : 'nao')
+      return action.format === 'html'
+        ? fence('slide' + attr('formato', 'html') + options, action.html ?? '')
+        : fence('slide' + attr('imagem', action.image) + options, action.markdown)
+    }
     case 'HIGHLIGHT':
       return fence(
         'destacar' +
@@ -176,8 +184,17 @@ function actionFromFence(info: string, body: string): StepAction {
         terminal: attrs.nome || undefined,
         timeoutSec: Number(attrs.tempo) || 60
       }
-    case 'slide':
-      return { id, kind: 'SLIDE', markdown: body, image: attrs.imagem || undefined }
+    case 'slide': {
+      const options = {
+        transition: SLIDE_TRANSITIONS.some((t) => t.value === attrs.transicao)
+          ? (attrs.transicao as SlideTransition)
+          : undefined,
+        fullscreen: attrs.telacheia ? attrs.telacheia === 'sim' : undefined
+      }
+      return attrs.formato === 'html'
+        ? { id, kind: 'SLIDE', format: 'html', markdown: '', html: body, ...options }
+        : { id, kind: 'SLIDE', markdown: body, image: attrs.imagem || undefined, ...options }
+    }
     case 'destacar': {
       const [start, end] = (attrs.linhas ?? '1').split('-').map((n) => Number(n) || 1)
       return {

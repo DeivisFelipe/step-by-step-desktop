@@ -1,0 +1,140 @@
+/* Slide transitions: the leaving slide stays under the entering one until both finish. */
+.sst-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  perspective: 1600px;
+}
+
+.sst-layer {
+  position: absolute;
+  inset: 0;
+  animation-duration: var(--sst-ms, 600ms);
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-fill-mode: both;
+  backface-visibility: hidden;
+}
+
+.sst-in.sst-fade {
+  animation-name: sst-fade-in;
+}
+.sst-out.sst-fade {
+  animation-name: sst-fade-out;
+}
+.sst-in.sst-slide-left {
+  animation-name: sst-left-in;
+}
+.sst-out.sst-slide-left {
+  animation-name: sst-left-out;
+}
+.sst-in.sst-slide-up {
+  animation-name: sst-up-in;
+}
+.sst-out.sst-slide-up {
+  animation-name: sst-up-out;
+}
+.sst-in.sst-zoom {
+  animation-name: sst-zoom-in;
+}
+.sst-out.sst-zoom {
+  animation-name: sst-zoom-out;
+}
+.sst-in.sst-blur {
+  animation-name: sst-blur-in;
+}
+.sst-out.sst-blur {
+  animation-name: sst-blur-out;
+}
+.sst-in.sst-flip {
+  animation-name: sst-flip-in;
+}
+.sst-out.sst-flip {
+  animation-name: sst-flip-out;
+}
+.sst-in.sst-wipe {
+  animation-name: sst-wipe-in;
+}
+.sst-out.sst-wipe {
+  animation-name: sst-hold;
+}
+
+@keyframes sst-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sst-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes sst-left-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes sst-left-out {
+  to {
+    transform: translateX(-100%);
+  }
+}
+@keyframes sst-up-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes sst-up-out {
+  to {
+    transform: translateY(-100%);
+  }
+}
+@keyframes sst-zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+@keyframes sst-zoom-out {
+  to {
+    opacity: 0;
+    transform: scale(1.4);
+  }
+}
+@keyframes sst-blur-in {
+  from {
+    opacity: 0;
+    filter: blur(24px);
+  }
+}
+@keyframes sst-blur-out {
+  to {
+    opacity: 0;
+    filter: blur(24px);
+  }
+}
+@keyframes sst-flip-in {
+  from {
+    opacity: 0;
+    transform: rotateY(-90deg);
+  }
+}
+@keyframes sst-flip-out {
+  to {
+    opacity: 0;
+    transform: rotateY(90deg);
+  }
+}
+@keyframes sst-wipe-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes sst-hold {
+  to {
+    opacity: 1;
+  }
+}
