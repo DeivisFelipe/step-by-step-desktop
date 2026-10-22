@@ -1,0 +1,553 @@
+{
+  "version": 2,
+  "title": "Introdução ao PHP",
+  "tree": [
+    {
+      "id": "05-php-introducao-1",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "1. O que é PHP",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "05-php-introducao-2",
+          "parentId": "05-php-introducao-1",
+          "type": "STEP",
+          "title": "Abertura",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-3",
+                "kind": "SLIDE",
+                "markdown": "# Introdução ao PHP\n\n- Linguagem para criar **páginas e sistemas web**\n- Roda no **servidor**, não no navegador\n- Usada no WordPress, Laravel, Moodle e milhões de sites\n- Fácil de começar: um arquivo `.php` já é um programa"
+              }
+            ],
+            "caption": "Hoje: uma introdução prática ao **PHP**.",
+            "presenterNotes": "Apresentar-se e perguntar quem já programou em alguma linguagem. Comentar que o Moodle da universidade é feito em PHP."
+          }
+        },
+        {
+          "id": "05-php-introducao-4",
+          "parentId": "05-php-introducao-1",
+          "type": "STEP",
+          "title": "Como o PHP funciona",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-5",
+                "kind": "SLIDE",
+                "markdown": "## Como funciona\n\n1. O navegador pede uma página: `index.php`\n2. O **servidor** executa o código PHP\n3. O PHP gera **HTML**\n4. O navegador recebe só o HTML pronto\n\n> O usuário nunca vê o código PHP, só o resultado."
+              }
+            ],
+            "caption": "O PHP é executado no **servidor** e devolve HTML para o navegador.",
+            "presenterNotes": "Diferença para o JavaScript: o JS roda no navegador; o PHP roda antes, no servidor."
+          }
+        },
+        {
+          "id": "05-php-introducao-6",
+          "parentId": "05-php-introducao-1",
+          "type": "STEP",
+          "title": "Preparar o terminal",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-7",
+                "kind": "TERMINAL",
+                "command": "php -v",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "Conferindo a versão do PHP instalada.",
+            "presenterNotes": "precisa do PHP instalado (php.net, XAMPP no Windows ou \"sudo apt install php-cli\" no Linux). Se o comando php não for encontrado, coloque a pasta do PHP no PATH."
+          }
+        }
+      ]
+    },
+    {
+      "id": "05-php-introducao-8",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "2. Primeiro script",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "05-php-introducao-9",
+          "parentId": "05-php-introducao-8",
+          "type": "STEP",
+          "title": "Olá, mundo",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-10",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "<?php\n\necho \"Olá, mundo!\\n\";\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 25,
+                  "language": "php"
+                },
+                "targetPath": "ola.php"
+              }
+            ],
+            "caption": "Todo arquivo PHP começa com `<?php`. O `echo` mostra um texto.",
+            "presenterNotes": "Chamar atenção para o ponto e vírgula no fim da linha."
+          }
+        },
+        {
+          "id": "05-php-introducao-11",
+          "parentId": "05-php-introducao-8",
+          "type": "STEP",
+          "title": "Executar no terminal",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-12",
+                "kind": "TERMINAL",
+                "command": "php ola.php",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "O comando `php` executa o arquivo direto no terminal."
+          }
+        },
+        {
+          "id": "05-php-introducao-13",
+          "parentId": "05-php-introducao-8",
+          "type": "STEP",
+          "title": "A tag de abertura",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-14",
+                "kind": "HIGHLIGHT",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "ola.php",
+                "startLine": 1,
+                "endLine": 1,
+                "note": "Tudo depois de <?php é interpretado como código PHP."
+              }
+            ],
+            "caption": "A tag `<?php` avisa que ali começa o código."
+          }
+        }
+      ]
+    },
+    {
+      "id": "05-php-introducao-15",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "3. Variáveis e tipos",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "05-php-introducao-16",
+          "parentId": "05-php-introducao-15",
+          "type": "STEP",
+          "title": "Criar variáveis",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-17",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "<?php\n\n$nome = \"[[Nome:Ana]]\";\n$idade = [[Idade:20]];\n$altura = 1.65;\n$estudante = true;\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 25,
+                  "language": "php"
+                },
+                "targetPath": "variaveis.php"
+              }
+            ],
+            "caption": "Variáveis começam com `$`. O tipo é definido pelo valor guardado.",
+            "presenterNotes": "Dá para trocar o nome e a idade antes de executar: são variáveis do passo."
+          }
+        },
+        {
+          "id": "05-php-introducao-18",
+          "parentId": "05-php-introducao-15",
+          "type": "STEP",
+          "title": "Mostrar com interpolação",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-19",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "APPEND",
+                "content": "\necho \"Olá, $nome! Você tem $idade anos.\\n\";\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 25,
+                  "language": "php"
+                },
+                "targetPath": "variaveis.php"
+              },
+              {
+                "id": "05-php-introducao-20",
+                "kind": "TERMINAL",
+                "command": "php variaveis.php",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "Entre aspas duplas, o PHP troca `$nome` pelo valor da variável."
+          }
+        },
+        {
+          "id": "05-php-introducao-21",
+          "parentId": "05-php-introducao-15",
+          "type": "STEP",
+          "title": "Os tipos de cada variável",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-22",
+                "kind": "HIGHLIGHT",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "variaveis.php",
+                "startLine": 3,
+                "endLine": 6,
+                "note": "string, int, float e bool: o PHP descobre o tipo sozinho."
+              },
+              {
+                "id": "05-php-introducao-23",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "APPEND",
+                "content": "var_dump($idade, $altura, $estudante);\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 25,
+                  "language": "php"
+                },
+                "targetPath": "variaveis.php"
+              },
+              {
+                "id": "05-php-introducao-24",
+                "kind": "TERMINAL",
+                "command": "php variaveis.php",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "`var_dump` mostra o **tipo** e o **valor** de cada variável."
+          }
+        }
+      ]
+    },
+    {
+      "id": "05-php-introducao-25",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "4. Decisões e repetições",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "05-php-introducao-26",
+          "parentId": "05-php-introducao-25",
+          "type": "STEP",
+          "title": "if / else",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-27",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "<?php\n\n$nota = [[Nota:8]];\n\nif ($nota >= 7) {\n    echo \"Aprovado com nota $nota\\n\";\n} elseif ($nota >= 5) {\n    echo \"Em recuperação\\n\";\n} else {\n    echo \"Reprovado\\n\";\n}\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 25,
+                  "language": "php"
+                },
+                "targetPath": "condicoes.php"
+              },
+              {
+                "id": "05-php-introducao-28",
+                "kind": "TERMINAL",
+                "command": "php condicoes.php",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "O `if` escolhe o que executar de acordo com uma condição.",
+            "presenterNotes": "Trocar a variável Nota para 6 e depois 3 e executar o passo de novo (Ir até este passo)."
+          }
+        },
+        {
+          "id": "05-php-introducao-29",
+          "parentId": "05-php-introducao-25",
+          "type": "STEP",
+          "title": "Laço for",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-30",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "<?php\n\n$numero = [[Tabuada:7]];\n\nfor ($i = 1; $i <= 10; $i++) {\n    echo \"$numero x $i = \" . ($numero * $i) . \"\\n\";\n}\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 25,
+                  "language": "php"
+                },
+                "targetPath": "repeticao.php"
+              },
+              {
+                "id": "05-php-introducao-31",
+                "kind": "TERMINAL",
+                "command": "php repeticao.php",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "O `for` repete um bloco um número definido de vezes. O ponto (`.`) junta textos."
+          }
+        },
+        {
+          "id": "05-php-introducao-32",
+          "parentId": "05-php-introducao-25",
+          "type": "STEP",
+          "title": "Arrays e foreach",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-33",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "APPEND",
+                "content": "\n$linguagens = [\"PHP\", \"JavaScript\", \"Python\"];\n\nforeach ($linguagens as $linguagem) {\n    echo \"- $linguagem\\n\";\n}\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 25,
+                  "language": "php"
+                },
+                "targetPath": "repeticao.php"
+              },
+              {
+                "id": "05-php-introducao-34",
+                "kind": "TERMINAL",
+                "command": "php repeticao.php",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "Um **array** guarda vários valores. O `foreach` percorre cada um deles."
+          }
+        }
+      ]
+    },
+    {
+      "id": "05-php-introducao-35",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "5. Funções",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "05-php-introducao-36",
+          "parentId": "05-php-introducao-35",
+          "type": "STEP",
+          "title": "Criar uma função",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-37",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "<?php\n\nfunction soma(int $a, int $b): int\n{\n    return $a + $b;\n}\n\necho soma(2, 3) . \"\\n\";\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 25,
+                  "language": "php"
+                },
+                "targetPath": "funcoes.php"
+              },
+              {
+                "id": "05-php-introducao-38",
+                "kind": "TERMINAL",
+                "command": "php funcoes.php",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "Uma **função** recebe parâmetros e devolve um resultado com `return`.",
+            "presenterNotes": "Explicar que os tipos (int) são opcionais, mas ajudam a evitar erros."
+          }
+        },
+        {
+          "id": "05-php-introducao-39",
+          "parentId": "05-php-introducao-35",
+          "type": "STEP",
+          "title": "Parâmetro com valor padrão",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-40",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "INSERT_AFTER",
+                "content": "\nfunction saudacao(string $nome = \"turma\"): string\n{\n    return \"Bem-vinda(o), $nome!\";\n}\n",
+                "config": {
+                  "animation": "MORPH",
+                  "typingSpeedMs": 30,
+                  "language": "php"
+                },
+                "targetPath": "funcoes.php",
+                "replaceToken": "    return $a + $b;\n}\n"
+              },
+              {
+                "id": "05-php-introducao-41",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "APPEND",
+                "content": "echo saudacao() . \"\\n\";\necho saudacao(\"Ana\") . \"\\n\";\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 25,
+                  "language": "php"
+                },
+                "targetPath": "funcoes.php"
+              },
+              {
+                "id": "05-php-introducao-42",
+                "kind": "TERMINAL",
+                "command": "php funcoes.php",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "Parâmetros podem ter um **valor padrão**, usado quando nada é informado."
+          }
+        }
+      ]
+    },
+    {
+      "id": "05-php-introducao-43",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "6. PHP na web",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "05-php-introducao-44",
+          "parentId": "05-php-introducao-43",
+          "type": "STEP",
+          "title": "Uma página com PHP",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-45",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "<?php date_default_timezone_set(\"America/Sao_Paulo\"); ?>\n<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>\n    <meta charset=\"UTF-8\">\n    <title>Minha primeira página PHP</title>\n</head>\n<body>\n    <h1>Olá, turma!</h1>\n    <p>Hoje é <?= date(\"d/m/Y\") ?> e são <?= date(\"H:i\") ?>.</p>\n\n    <ul>\n        <?php foreach ([\"HTML\", \"CSS\", \"PHP\"] as $item): ?>\n            <li><?= $item ?></li>\n        <?php endforeach; ?>\n    </ul>\n</body>\n</html>\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 15,
+                  "language": "php"
+                },
+                "targetPath": "index.php"
+              }
+            ],
+            "caption": "O PHP pode ficar **dentro do HTML**. `<?= ?>` é um atalho para `echo`."
+          }
+        },
+        {
+          "id": "05-php-introducao-46",
+          "parentId": "05-php-introducao-43",
+          "type": "STEP",
+          "title": "Subir o servidor",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-47",
+                "kind": "TERMINAL",
+                "command": "php -S localhost:8000",
+                "executeImmediately": true,
+                "typingAnimation": true,
+                "terminal": "Servidor"
+              },
+              {
+                "id": "05-php-introducao-48",
+                "kind": "WAIT",
+                "pattern": "started",
+                "terminal": "Servidor",
+                "timeoutSec": 20
+              }
+            ],
+            "caption": "O PHP já vem com um servidor web para desenvolvimento.",
+            "presenterNotes": "Este terminal fica rodando o servidor; os outros comandos continuam no Terminal 1."
+          }
+        },
+        {
+          "id": "05-php-introducao-49",
+          "parentId": "05-php-introducao-43",
+          "type": "STEP",
+          "title": "Ver no navegador",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-50",
+                "kind": "PREVIEW",
+                "url": "http://localhost:8000"
+              }
+            ],
+            "caption": "O navegador recebe só o **HTML** gerado. A data muda a cada acesso.",
+            "presenterNotes": "Abrir o \"ver código-fonte\" no navegador para mostrar que o PHP não aparece."
+          }
+        }
+      ]
+    },
+    {
+      "id": "05-php-introducao-51",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "7. Encerramento",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "05-php-introducao-52",
+          "parentId": "05-php-introducao-51",
+          "type": "STEP",
+          "title": "Desafio",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-53",
+                "kind": "CHALLENGE",
+                "markdown": "## Desafio\n\nCrie `filmes.php` com um **array** dos seus 3 filmes favoritos e mostre cada um numa lista usando `foreach`.\n\nBônus: mostre também quantos filmes há com `count()`.",
+                "durationSec": 300
+              }
+            ],
+            "caption": "Mãos à obra: 5 minutos!"
+          }
+        },
+        {
+          "id": "05-php-introducao-54",
+          "parentId": "05-php-introducao-51",
+          "type": "STEP",
+          "title": "Resumo e próximos passos",
+          "data": {
+            "actions": [
+              {
+                "id": "05-php-introducao-55",
+                "kind": "SLIDE",
+                "markdown": "## O que vimos\n\n- `<?php`, `echo` e o ponto e vírgula\n- Variáveis com `$` e tipos automáticos\n- `if`, `for`, arrays e `foreach`\n- Funções com `return` e valor padrão\n- PHP dentro do HTML e o servidor embutido\n\n**Próximos passos:** formulários (`$_GET` e `$_POST`), banco de dados com PDO e o framework Laravel."
+              }
+            ],
+            "caption": "Obrigado! Dúvidas?"
+          }
+        }
+      ]
+    }
+  ]
+}

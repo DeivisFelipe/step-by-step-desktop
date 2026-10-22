@@ -73,6 +73,15 @@ export function setupUpdater(broadcast: (status: UpdateStatus) => void): void {
     status = { ...status, state: 'disabled' }
     return
   }
+  // On Linux only the AppImage replaces itself; .deb installs update through the package.
+  if (process.platform === 'linux' && !process.env['APPIMAGE'] && !testFeed) {
+    status = {
+      ...status,
+      state: 'disabled',
+      error: 'no Linux (.deb), instale a versão nova baixando o .deb da página de releases'
+    }
+    return
+  }
   if (testFeed) {
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.setFeedURL({ provider: 'generic', url: testFeed })

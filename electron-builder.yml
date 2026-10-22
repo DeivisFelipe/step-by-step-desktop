@@ -9,7 +9,14 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
-  - '!{dist,dist-*,docs,.github}/**'
+  - '!{dist,dist-*,docs,.github,scripts,exemplos}/**'
+# Example lessons, copied to the user's Documents when opened.
+extraResources:
+  - from: exemplos
+    to: exemplos
+    filter:
+      - '**/*'
+      - '**/.stepbystep/**'
 asarUnpack:
   - resources/**
   - node_modules/node-pty/**
@@ -32,15 +39,25 @@ mac:
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}
+# Linux: AppImage (runs anywhere, updates itself) and .deb (Debian, Ubuntu, Mint).
 linux:
   target:
     - AppImage
-    - snap
     - deb
+  executableName: step-by-step-code
+  icon: build/icon.png
   maintainer: Deivis Felipe
-  category: Utility
+  category: Education
+  synopsis: Aulas de programação passo a passo
+  description: Prepare aulas de programação com antecedência e apresente-as passo a passo, com digitação animada, terminal, slides e páginas para o OBS.
 appImage:
   artifactName: ${name}-${version}.${ext}
+deb:
+  artifactName: ${name}_${version}_${arch}.${ext}
+  depends:
+    - libnotify4
+    - libxtst6
+    - libnss3
 npmRebuild: false
 # Releases on GitHub; installed apps check them for updates (electron-updater).
 publish:

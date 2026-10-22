@@ -1,0 +1,291 @@
+{
+  "version": 2,
+  "title": "Git básico",
+  "tree": [
+    {
+      "id": "06-git-basico-1",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Primeiro repositório",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "06-git-basico-2",
+          "parentId": "06-git-basico-1",
+          "type": "STEP",
+          "title": "Para que serve o Git",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-3",
+                "kind": "SLIDE",
+                "markdown": "# Git básico\n\n- **Repositório**: a pasta com o histórico\n- **Commit**: uma foto dos arquivos, com mensagem\n- **Branch**: uma linha de trabalho paralela",
+                "transition": "fade"
+              }
+            ],
+            "caption": "O **Git** guarda o histórico do projeto: cada **commit** é uma foto dos arquivos.",
+            "presenterNotes": "precisa do Git instalado (git-scm.com). Para repetir a aula do zero, apague a pasta .git depois de Resetar."
+          }
+        },
+        {
+          "id": "06-git-basico-4",
+          "parentId": "06-git-basico-1",
+          "type": "STEP",
+          "title": "Conferir a instalação",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-5",
+                "kind": "TERMINAL",
+                "command": "git --version",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "06-git-basico-6",
+          "parentId": "06-git-basico-1",
+          "type": "STEP",
+          "title": "Criar o repositório",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-7",
+                "kind": "TERMINAL",
+                "command": "git init",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "06-git-basico-8",
+          "parentId": "06-git-basico-1",
+          "type": "STEP",
+          "title": "Um arquivo para versionar",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-9",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "# Meu projeto\n\nProjeto de exemplo para aprender Git.\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "markdown"
+                },
+                "targetPath": "README.md"
+              }
+            ]
+          }
+        },
+        {
+          "id": "06-git-basico-10",
+          "parentId": "06-git-basico-1",
+          "type": "STEP",
+          "title": "Ver o estado",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-11",
+                "kind": "TERMINAL",
+                "command": "git status",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "O arquivo novo aparece como **não rastreado**."
+          }
+        },
+        {
+          "id": "06-git-basico-12",
+          "parentId": "06-git-basico-1",
+          "type": "STEP",
+          "title": "Primeiro commit",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-13",
+                "kind": "TERMINAL",
+                "command": "git add README.md\ngit -c user.name=\"Professor\" -c user.email=\"professor@exemplo.com\" commit -m \"Primeiro commit\"",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "`add` escolhe o que entra na foto; `commit` tira a foto.",
+            "presenterNotes": "o -c define nome e e-mail só para este comando, para funcionar em qualquer computador."
+          }
+        }
+      ]
+    },
+    {
+      "id": "06-git-basico-14",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Mudanças",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "06-git-basico-15",
+          "parentId": "06-git-basico-14",
+          "type": "STEP",
+          "title": "Mudar um arquivo",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-16",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "APPEND",
+                "content": "\n## Como usar\n\nAbra o arquivo e leia.\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "markdown"
+                },
+                "targetPath": "README.md"
+              }
+            ]
+          }
+        },
+        {
+          "id": "06-git-basico-17",
+          "parentId": "06-git-basico-14",
+          "type": "STEP",
+          "title": "O que mudou",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-18",
+                "kind": "TERMINAL",
+                "command": "git --no-pager diff",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "`git diff` mostra as linhas novas (+) e removidas (-)."
+          }
+        },
+        {
+          "id": "06-git-basico-19",
+          "parentId": "06-git-basico-14",
+          "type": "STEP",
+          "title": "Segundo commit",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-20",
+                "kind": "TERMINAL",
+                "command": "git -c user.name=\"Professor\" -c user.email=\"professor@exemplo.com\" commit -am \"Explica como usar\"",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "`-a` inclui todos os arquivos já rastreados."
+          }
+        },
+        {
+          "id": "06-git-basico-21",
+          "parentId": "06-git-basico-14",
+          "type": "STEP",
+          "title": "O histórico",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-22",
+                "kind": "TERMINAL",
+                "command": "git --no-pager log --oneline",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "06-git-basico-23",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Branches",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "06-git-basico-24",
+          "parentId": "06-git-basico-23",
+          "type": "STEP",
+          "title": "Uma nova linha de trabalho",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-25",
+                "kind": "TERMINAL",
+                "command": "git switch -c nova-ideia",
+                "executeImmediately": true,
+                "typingAnimation": true
+              },
+              {
+                "id": "06-git-basico-26",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "Uma ideia testada sem mexer na linha principal.\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30
+                },
+                "targetPath": "ideias.txt"
+              },
+              {
+                "id": "06-git-basico-27",
+                "kind": "TERMINAL",
+                "command": "git add ideias.txt\ngit -c user.name=\"Professor\" -c user.email=\"professor@exemplo.com\" commit -m \"Testa uma ideia\"",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "06-git-basico-28",
+          "parentId": "06-git-basico-23",
+          "type": "STEP",
+          "title": "Voltar e juntar",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-29",
+                "kind": "TERMINAL",
+                "command": "git switch -\ngit merge nova-ideia\ngit --no-pager log --oneline --graph",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "`switch -` volta para a branch anterior; `merge` traz o trabalho da outra branch."
+          }
+        },
+        {
+          "id": "06-git-basico-30",
+          "parentId": "06-git-basico-23",
+          "type": "STEP",
+          "title": "Desafio",
+          "data": {
+            "actions": [
+              {
+                "id": "06-git-basico-31",
+                "kind": "CHALLENGE",
+                "markdown": "## Sua vez\n\n1. Crie a branch `minha-parte`\n2. Crie um arquivo e faça um commit nela\n3. Volte e junte com `merge`",
+                "durationSec": 300
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

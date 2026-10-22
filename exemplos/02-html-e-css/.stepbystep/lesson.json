@@ -1,0 +1,239 @@
+{
+  "version": 2,
+  "title": "Primeira página com HTML e CSS",
+  "tree": [
+    {
+      "id": "02-html-e-css-1",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "HTML",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "02-html-e-css-2",
+          "parentId": "02-html-e-css-1",
+          "type": "STEP",
+          "title": "O que é HTML",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-3",
+                "kind": "SLIDE",
+                "markdown": "# HTML e CSS\n\n- **HTML**: o conteúdo (títulos, textos, imagens, links)\n- **CSS**: a aparência (cores, tamanhos, posições)\n- O navegador junta os dois e desenha a página",
+                "transition": "fade"
+              }
+            ],
+            "caption": "O **HTML** diz o que existe na página; o **CSS** diz como ela aparece.",
+            "presenterNotes": "não precisa instalar nada; o preview abre a página dentro do app."
+          }
+        },
+        {
+          "id": "02-html-e-css-4",
+          "parentId": "02-html-e-css-1",
+          "type": "STEP",
+          "title": "O esqueleto da página",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-5",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "<!doctype html>\n<html lang=\"pt-BR\">\n  <head>\n    <meta charset=\"utf-8\">\n    <title>Minha página</title>\n  </head>\n  <body>\n  </body>\n</html>\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 20,
+                  "language": "html"
+                },
+                "targetPath": "index.html"
+              }
+            ],
+            "caption": "Toda página começa com este esqueleto."
+          }
+        },
+        {
+          "id": "02-html-e-css-6",
+          "parentId": "02-html-e-css-1",
+          "type": "STEP",
+          "title": "As partes do esqueleto",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-7",
+                "kind": "HIGHLIGHT",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "index.html",
+                "startLine": 3,
+                "endLine": 6,
+                "note": "O head guarda informações sobre a página: o título da aba, o idioma dos caracteres…"
+              }
+            ]
+          }
+        },
+        {
+          "id": "02-html-e-css-8",
+          "parentId": "02-html-e-css-1",
+          "type": "STEP",
+          "title": "Conteúdo no body",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-9",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "INSERT_AFTER",
+                "content": "\n    <h1>Olá, mundo!</h1>\n    <p>Esta é a minha primeira página.</p>\n    <ul>\n      <li>Aprender HTML</li>\n      <li>Aprender CSS</li>\n    </ul>\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "html"
+                },
+                "targetPath": "index.html",
+                "replaceToken": "<body>"
+              }
+            ],
+            "caption": "Tudo o que aparece na tela fica dentro do **body**."
+          }
+        },
+        {
+          "id": "02-html-e-css-10",
+          "parentId": "02-html-e-css-1",
+          "type": "STEP",
+          "title": "Ver no navegador",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-11",
+                "kind": "PREVIEW",
+                "url": "index.html"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "02-html-e-css-12",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "CSS",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "02-html-e-css-13",
+          "parentId": "02-html-e-css-12",
+          "type": "STEP",
+          "title": "O que é CSS",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-14",
+                "kind": "SLIDE",
+                "markdown": "# CSS: regras de estilo\n\n```css\nseletor {\n  propriedade: valor;\n}\n```\n\n- O **seletor** escolhe os elementos\n- Cada **propriedade** muda um detalhe",
+                "transition": "slide-left"
+              }
+            ]
+          }
+        },
+        {
+          "id": "02-html-e-css-15",
+          "parentId": "02-html-e-css-12",
+          "type": "STEP",
+          "title": "Criar o arquivo de estilo",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-16",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "body {\n  font-family: sans-serif;\n  background: #0f172a;\n  color: #e2e8f0;\n  padding: 40px;\n}\n\nh1 {\n  color: #38bdf8;\n}\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "css"
+                },
+                "targetPath": "estilo.css"
+              }
+            ]
+          }
+        },
+        {
+          "id": "02-html-e-css-17",
+          "parentId": "02-html-e-css-12",
+          "type": "STEP",
+          "title": "Ligar o CSS ao HTML",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-18",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "INSERT_AFTER",
+                "content": "\n    <link rel=\"stylesheet\" href=\"estilo.css\">\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "html"
+                },
+                "targetPath": "index.html",
+                "replaceToken": "<title>Minha página</title>"
+              }
+            ],
+            "caption": "A tag **link** diz ao navegador onde está o estilo."
+          }
+        },
+        {
+          "id": "02-html-e-css-19",
+          "parentId": "02-html-e-css-12",
+          "type": "STEP",
+          "title": "Ver o resultado",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-20",
+                "kind": "PREVIEW",
+                "url": "index.html"
+              }
+            ]
+          }
+        },
+        {
+          "id": "02-html-e-css-21",
+          "parentId": "02-html-e-css-12",
+          "type": "STEP",
+          "title": "Destacar a regra do título",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-22",
+                "kind": "HIGHLIGHT",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "estilo.css",
+                "startLine": 8,
+                "endLine": 10,
+                "note": "Só os títulos h1 ficam azuis."
+              }
+            ]
+          }
+        },
+        {
+          "id": "02-html-e-css-23",
+          "parentId": "02-html-e-css-12",
+          "type": "STEP",
+          "title": "Desafio",
+          "data": {
+            "actions": [
+              {
+                "id": "02-html-e-css-24",
+                "kind": "CHALLENGE",
+                "markdown": "## Sua vez\n\n1. Mude a cor de fundo em **estilo.css**\n2. Adicione um item na lista\n3. Deixe os itens da lista em **negrito** (`font-weight: bold`)",
+                "durationSec": 300
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

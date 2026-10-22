@@ -1,0 +1,221 @@
+{
+  "version": 2,
+  "title": "Galeria de slides em HTML",
+  "tree": [
+    {
+      "id": "08-galeria-de-slides-1",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Designs",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "08-galeria-de-slides-2",
+          "parentId": "08-galeria-de-slides-1",
+          "type": "STEP",
+          "title": "Capa com gradiente animado",
+          "data": {
+            "actions": [
+              {
+                "id": "08-galeria-de-slides-3",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    display: grid;\n    place-items: center;\n    background: linear-gradient(120deg, #f97316, #db2777, #7c3aed, #2563eb);\n    background-size: 300% 300%;\n    animation: fundo 8s ease infinite;\n  }\n  .capa {\n    text-align: center;\n  }\n  h1 {\n    margin: 0;\n    font-size: 140px;\n    letter-spacing: -4px;\n  }\n  p {\n    margin: 20px 0 0;\n    font-size: 48px;\n    opacity: 0.9;\n  }\n  @keyframes fundo {\n    50% {\n      background-position: 100% 50%;\n    }\n  }\n</style>\n<div class=\"capa\">\n  <h1>Título da aula</h1>\n  <p>Subtítulo · Professor · Data</p>\n</div>",
+                "transition": "fade"
+              }
+            ],
+            "caption": "Modelos de slides em HTML para copiar e adaptar. Cada passo usa uma transição diferente.",
+            "presenterNotes": "abra o passo no editor para ver e copiar o HTML. Os slides são pensados para 1920×1080."
+          }
+        },
+        {
+          "id": "08-galeria-de-slides-4",
+          "parentId": "08-galeria-de-slides-1",
+          "type": "STEP",
+          "title": "Tópicos que entram um a um",
+          "data": {
+            "actions": [
+              {
+                "id": "08-galeria-de-slides-5",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    padding: 120px 160px;\n    box-sizing: border-box;\n    background: #0f172a;\n  }\n  h2 {\n    margin: 0 0 60px;\n    font-size: 84px;\n    color: #38bdf8;\n  }\n  li {\n    margin: 28px 0;\n    font-size: 56px;\n    list-style: none;\n    opacity: 0;\n    animation: entrar 600ms ease forwards;\n  }\n  li::before {\n    content: '→ ';\n    color: #f472b6;\n  }\n  li:nth-child(2) {\n    animation-delay: 0.6s;\n  }\n  li:nth-child(3) {\n    animation-delay: 1.2s;\n  }\n  li:nth-child(4) {\n    animation-delay: 1.8s;\n  }\n  @keyframes entrar {\n    from {\n      opacity: 0;\n      transform: translateX(-60px);\n    }\n    to {\n      opacity: 1;\n      transform: none;\n    }\n  }\n</style>\n<h2>O que vamos ver</h2>\n<ul>\n  <li>Primeiro tópico</li>\n  <li>Segundo tópico</li>\n  <li>Terceiro tópico</li>\n  <li>Prática no final</li>\n</ul>",
+                "transition": "slide-left"
+              }
+            ]
+          }
+        },
+        {
+          "id": "08-galeria-de-slides-6",
+          "parentId": "08-galeria-de-slides-1",
+          "type": "STEP",
+          "title": "Duas colunas com ilustração",
+          "data": {
+            "actions": [
+              {
+                "id": "08-galeria-de-slides-7",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    display: grid;\n    grid-template-columns: 1fr 1fr;\n    align-items: center;\n    gap: 80px;\n    padding: 0 140px;\n    box-sizing: border-box;\n    background: #f8fafc;\n    color: #0f172a;\n  }\n  h2 {\n    font-size: 80px;\n    margin: 0 0 30px;\n  }\n  p {\n    font-size: 44px;\n    line-height: 1.4;\n    margin: 0;\n    color: #334155;\n  }\n  svg {\n    width: 100%;\n  }\n  .gira {\n    transform-origin: 300px 300px;\n    animation: girar 12s linear infinite;\n  }\n  @keyframes girar {\n    to {\n      transform: rotate(360deg);\n    }\n  }\n</style>\n<div>\n  <h2>Texto e imagem</h2>\n  <p>Explique a ideia à esquerda e mostre um desenho, foto ou diagrama à direita.</p>\n</div>\n<svg viewBox=\"0 0 600 600\">\n  <circle cx=\"300\" cy=\"300\" r=\"260\" fill=\"#e0e7ff\" />\n  <g class=\"gira\">\n    <circle cx=\"300\" cy=\"80\" r=\"50\" fill=\"#6366f1\" />\n    <circle cx=\"510\" cy=\"300\" r=\"50\" fill=\"#ec4899\" />\n    <circle cx=\"300\" cy=\"520\" r=\"50\" fill=\"#14b8a6\" />\n    <circle cx=\"90\" cy=\"300\" r=\"50\" fill=\"#f59e0b\" />\n  </g>\n  <circle cx=\"300\" cy=\"300\" r=\"90\" fill=\"#4338ca\" />\n</svg>",
+                "transition": "slide-up"
+              }
+            ]
+          }
+        },
+        {
+          "id": "08-galeria-de-slides-8",
+          "parentId": "08-galeria-de-slides-1",
+          "type": "STEP",
+          "title": "Número em destaque",
+          "data": {
+            "actions": [
+              {
+                "id": "08-galeria-de-slides-9",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    display: flex;\n    flex-direction: column;\n    align-items: center;\n    justify-content: center;\n    background: radial-gradient(circle, #065f46, #022c22);\n  }\n  .numero {\n    font-size: 320px;\n    font-weight: 800;\n    line-height: 1;\n    font-variant-numeric: tabular-nums;\n  }\n  p {\n    font-size: 56px;\n    margin: 20px 0 0;\n    opacity: 0.85;\n  }\n</style>\n<div class=\"numero\" id=\"numero\">0</div>\n<p>alunos já fizeram este curso</p>\n<script>\n  const alvo = 1250\n  const el = document.getElementById('numero')\n  const inicio = performance.now()\n  function passo(agora) {\n    const t = Math.min(1, (agora - inicio) / 2000)\n    el.textContent = Math.round(alvo * (1 - Math.pow(1 - t, 3))).toLocaleString('pt-BR')\n    if (t < 1) requestAnimationFrame(passo)\n  }\n  requestAnimationFrame(passo)\n</script>",
+                "transition": "zoom"
+              }
+            ],
+            "caption": "O número conta até o valor com um script."
+          }
+        },
+        {
+          "id": "08-galeria-de-slides-10",
+          "parentId": "08-galeria-de-slides-1",
+          "type": "STEP",
+          "title": "Linha do tempo",
+          "data": {
+            "actions": [
+              {
+                "id": "08-galeria-de-slides-11",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    display: flex;\n    flex-direction: column;\n    justify-content: center;\n    padding: 0 120px;\n    box-sizing: border-box;\n    background: #1e1b4b;\n  }\n  h2 {\n    font-size: 80px;\n    margin: 0 0 100px;\n  }\n  .linha {\n    position: relative;\n    display: flex;\n    justify-content: space-between;\n  }\n  .linha::before {\n    content: '';\n    position: absolute;\n    left: 0;\n    right: 0;\n    top: 30px;\n    height: 8px;\n    background: #6366f1;\n    transform-origin: left;\n    animation: crescer 1.5s ease both;\n  }\n  .marco {\n    position: relative;\n    width: 300px;\n    text-align: center;\n    opacity: 0;\n    animation: aparecer 500ms ease forwards;\n  }\n  .marco::before {\n    content: '';\n    display: block;\n    width: 68px;\n    height: 68px;\n    margin: 0 auto 30px;\n    border-radius: 50%;\n    background: #f472b6;\n  }\n  .marco b {\n    display: block;\n    font-size: 56px;\n  }\n  .marco span {\n    font-size: 36px;\n    opacity: 0.8;\n  }\n  .marco:nth-child(1) {\n    animation-delay: 0.3s;\n  }\n  .marco:nth-child(2) {\n    animation-delay: 0.8s;\n  }\n  .marco:nth-child(3) {\n    animation-delay: 1.3s;\n  }\n  .marco:nth-child(4) {\n    animation-delay: 1.8s;\n  }\n  @keyframes crescer {\n    from {\n      transform: scaleX(0);\n    }\n  }\n  @keyframes aparecer {\n    to {\n      opacity: 1;\n    }\n  }\n</style>\n<h2>Linha do tempo (tela cheia)</h2>\n<div class=\"linha\">\n  <div class=\"marco\"><b>1991</b><span>Python</span></div>\n  <div class=\"marco\"><b>1995</b><span>JavaScript e PHP</span></div>\n  <div class=\"marco\"><b>2005</b><span>Git</span></div>\n  <div class=\"marco\"><b>Hoje</b><span>Sua aula</span></div>\n</div>",
+                "transition": "flip",
+                "fullscreen": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "08-galeria-de-slides-12",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Interação",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "08-galeria-de-slides-13",
+          "parentId": "08-galeria-de-slides-12",
+          "type": "STEP",
+          "title": "Quiz com botões",
+          "data": {
+            "actions": [
+              {
+                "id": "08-galeria-de-slides-14",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    display: flex;\n    flex-direction: column;\n    align-items: center;\n    justify-content: center;\n    gap: 40px;\n    background: #0f172a;\n  }\n  h2 {\n    font-size: 76px;\n    margin: 0 0 30px;\n  }\n  button {\n    width: 1100px;\n    padding: 34px;\n    border: 4px solid #334155;\n    border-radius: 28px;\n    background: #1e293b;\n    color: white;\n    font-size: 52px;\n    text-align: left;\n    cursor: pointer;\n  }\n  button:hover {\n    border-color: #38bdf8;\n  }\n</style>\n<h2>Qual comando mostra o histórico do Git?</h2>\n<button onclick=\"proximoPasso(0)\">A) git status</button>\n<button onclick=\"proximoPasso(1)\">B) git log</button>\n<button onclick=\"proximoPasso(2)\">C) git init</button>",
+                "transition": "wipe"
+              },
+              {
+                "id": "08-galeria-de-slides-15",
+                "kind": "CHOICE",
+                "title": "Resposta do quiz",
+                "showOnStage": false,
+                "options": [
+                  {
+                    "id": "08-galeria-de-slides-16",
+                    "label": "A) git status",
+                    "target": "08-galeria-de-slides-19"
+                  },
+                  {
+                    "id": "08-galeria-de-slides-17",
+                    "label": "B) git log",
+                    "target": "08-galeria-de-slides-22"
+                  },
+                  {
+                    "id": "08-galeria-de-slides-18",
+                    "label": "C) git init",
+                    "target": "08-galeria-de-slides-19"
+                  }
+                ]
+              }
+            ],
+            "caption": "Os botões chamam `proximoPasso(n)`: a resposta escolhida decide o próximo passo.",
+            "presenterNotes": "a resposta certa é a segunda (aperte 2 ou clique nela)."
+          }
+        },
+        {
+          "id": "08-galeria-de-slides-19",
+          "parentId": "08-galeria-de-slides-12",
+          "type": "STEP",
+          "title": "Tente de novo",
+          "data": {
+            "actions": [
+              {
+                "id": "08-galeria-de-slides-20",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    display: grid;\n    place-items: center;\n    background: #7f1d1d;\n    font-size: 90px;\n    font-weight: 700;\n  }\n</style>\n<div>Quase! Tente outra vez.</div>",
+                "transition": "blur"
+              },
+              {
+                "id": "08-galeria-de-slides-21",
+                "kind": "GOTO",
+                "target": "08-galeria-de-slides-13"
+              }
+            ]
+          }
+        },
+        {
+          "id": "08-galeria-de-slides-22",
+          "parentId": "08-galeria-de-slides-12",
+          "type": "STEP",
+          "title": "Resposta certa",
+          "data": {
+            "actions": [
+              {
+                "id": "08-galeria-de-slides-23",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    display: grid;\n    place-items: center;\n    background: #14532d;\n    font-size: 100px;\n    font-weight: 700;\n  }\n  div {\n    animation: pulo 600ms ease both;\n  }\n  @keyframes pulo {\n    50% {\n      transform: scale(1.15);\n    }\n  }\n</style>\n<div>Isso! git log ✔</div>",
+                "transition": "zoom"
+              }
+            ]
+          }
+        },
+        {
+          "id": "08-galeria-de-slides-24",
+          "parentId": "08-galeria-de-slides-12",
+          "type": "STEP",
+          "title": "Botão que roda um comando",
+          "data": {
+            "actions": [
+              {
+                "id": "08-galeria-de-slides-25",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    display: flex;\n    flex-direction: column;\n    align-items: center;\n    justify-content: center;\n    gap: 50px;\n    background: #111827;\n  }\n  h2 {\n    font-size: 76px;\n    margin: 0;\n  }\n  button {\n    padding: 36px 70px;\n    border: 0;\n    border-radius: 999px;\n    background: #22c55e;\n    color: #052e16;\n    font-size: 60px;\n    font-weight: 800;\n    cursor: pointer;\n  }\n</style>\n<h2>Que horas são no computador?</h2>\n<button onclick=\"rodarComando('date')\">▶ Rodar date</button>",
+                "transition": "slide-left"
+              }
+            ],
+            "caption": "`rodarComando('...')` executa no terminal; o palco mostra o resultado."
+          }
+        }
+      ]
+    }
+  ]
+}

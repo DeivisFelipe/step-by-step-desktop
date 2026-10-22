@@ -1,0 +1,244 @@
+{
+  "version": 2,
+  "title": "JavaScript com Node.js",
+  "tree": [
+    {
+      "id": "03-javascript-com-node-1",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Primeiros passos",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "03-javascript-com-node-2",
+          "parentId": "03-javascript-com-node-1",
+          "type": "STEP",
+          "title": "JavaScript fora do navegador",
+          "data": {
+            "actions": [
+              {
+                "id": "03-javascript-com-node-3",
+                "kind": "SLIDE",
+                "markdown": "# JavaScript com Node.js\n\n- A mesma linguagem do navegador\n- Roda no **terminal** e em servidores\n- `node arquivo.js` executa um arquivo",
+                "transition": "fade"
+              }
+            ],
+            "caption": "O **Node.js** roda JavaScript direto no terminal.",
+            "presenterNotes": "precisa do Node.js instalado (nodejs.org). Confira com o próximo passo."
+          }
+        },
+        {
+          "id": "03-javascript-com-node-4",
+          "parentId": "03-javascript-com-node-1",
+          "type": "STEP",
+          "title": "Conferir a instalação",
+          "data": {
+            "actions": [
+              {
+                "id": "03-javascript-com-node-5",
+                "kind": "TERMINAL",
+                "command": "node -v",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "03-javascript-com-node-6",
+          "parentId": "03-javascript-com-node-1",
+          "type": "STEP",
+          "title": "Olá, mundo",
+          "data": {
+            "actions": [
+              {
+                "id": "03-javascript-com-node-7",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "console.log('Olá, mundo!')\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "js"
+                },
+                "targetPath": "ola.js"
+              },
+              {
+                "id": "03-javascript-com-node-8",
+                "kind": "TERMINAL",
+                "command": "node ola.js",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "03-javascript-com-node-9",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Variáveis e funções",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "03-javascript-com-node-10",
+          "parentId": "03-javascript-com-node-9",
+          "type": "STEP",
+          "title": "Variáveis",
+          "data": {
+            "actions": [
+              {
+                "id": "03-javascript-com-node-11",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "const nome = 'Ana'\nlet idade = 20\nidade = idade + 1\n\nconsole.log(`${nome} tem ${idade} anos`)\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "js"
+                },
+                "targetPath": "variaveis.js"
+              },
+              {
+                "id": "03-javascript-com-node-12",
+                "kind": "TERMINAL",
+                "command": "node variaveis.js",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "**const** não muda; **let** pode mudar. A crase monta textos com `${}`."
+          }
+        },
+        {
+          "id": "03-javascript-com-node-13",
+          "parentId": "03-javascript-com-node-9",
+          "type": "STEP",
+          "title": "Listas e repetição",
+          "data": {
+            "actions": [
+              {
+                "id": "03-javascript-com-node-14",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "const notas = [7.5, 8, 9.5, 6]\n\nlet soma = 0\nfor (const nota of notas) {\n  soma = soma + nota\n}\n\nconsole.log('Média:', soma / notas.length)\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "js"
+                },
+                "targetPath": "notas.js"
+              },
+              {
+                "id": "03-javascript-com-node-15",
+                "kind": "TERMINAL",
+                "command": "node notas.js",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "03-javascript-com-node-16",
+          "parentId": "03-javascript-com-node-9",
+          "type": "STEP",
+          "title": "Uma função",
+          "data": {
+            "actions": [
+              {
+                "id": "03-javascript-com-node-17",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "APPEND",
+                "content": "\nfunction media(lista) {\n  const total = lista.reduce((acc, n) => acc + n, 0)\n  return total / lista.length\n}\n\nconsole.log('Média com função:', media(notas))\nconsole.log('Outra turma:', media([10, 5, 8]))\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "js"
+                },
+                "targetPath": "notas.js"
+              },
+              {
+                "id": "03-javascript-com-node-18",
+                "kind": "TERMINAL",
+                "command": "node notas.js",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "Uma **função** guarda um cálculo para usar várias vezes."
+          }
+        },
+        {
+          "id": "03-javascript-com-node-19",
+          "parentId": "03-javascript-com-node-9",
+          "type": "STEP",
+          "title": "O que a função faz",
+          "data": {
+            "actions": [
+              {
+                "id": "03-javascript-com-node-20",
+                "kind": "HIGHLIGHT",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "notas.js",
+                "startLine": 10,
+                "endLine": 13,
+                "note": "reduce soma tudo; a função devolve o resultado com return."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "03-javascript-com-node-21",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Prática",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "03-javascript-com-node-22",
+          "parentId": "03-javascript-com-node-21",
+          "type": "STEP",
+          "title": "Laboratório",
+          "data": {
+            "actions": [
+              {
+                "id": "03-javascript-com-node-23",
+                "kind": "LAB",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "notas.js",
+                "layout": "vertical",
+                "command": "node notas.js"
+              }
+            ],
+            "caption": "Mude a lista de notas e rode quantas vezes quiser (▶ ou Ctrl+Enter). **F8** continua."
+          }
+        },
+        {
+          "id": "03-javascript-com-node-24",
+          "parentId": "03-javascript-com-node-21",
+          "type": "STEP",
+          "title": "Desafio",
+          "data": {
+            "actions": [
+              {
+                "id": "03-javascript-com-node-25",
+                "kind": "CHALLENGE",
+                "markdown": "## Sua vez\n\nCrie a função `maiorNota(lista)` e mostre a maior nota com `console.log`.\n\nDica: `Math.max(...lista)`",
+                "durationSec": 300
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

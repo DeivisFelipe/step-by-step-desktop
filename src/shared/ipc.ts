@@ -12,6 +12,18 @@ export interface UpdateStatus {
   notes: string | null
 }
 
+/** An example lesson shipped with the app. */
+export interface ExampleInfo {
+  id: string
+  title: string
+  description: string
+  /** What must be installed to run it (e.g. "Python"); null = nothing. */
+  requires: string | null
+  steps: number
+  /** The user's copy in Documents, when it already exists. */
+  copy: string | null
+}
+
 export interface ServerInfo {
   port: number
   /** Base URL on this machine, e.g. http://127.0.0.1:4545 */

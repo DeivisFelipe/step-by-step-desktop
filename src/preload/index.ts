@@ -38,6 +38,8 @@ const api: CustomAPI = {
   savePreset: (name, style) => ipcRenderer.invoke('settings:save-preset', name, style),
   onSettingsChanged: (callback) => listen('settings:changed', callback),
 
+  listExamples: () => ipcRenderer.invoke('examples:list'),
+  installExample: (id, fresh) => ipcRenderer.invoke('examples:install', id, fresh),
   getServerInfo: () => ipcRenderer.invoke('server:info'),
   registerSlide: (html) => ipcRenderer.invoke('slide:register', html),
   onServerInfo: (callback) => listen('server:info', callback),

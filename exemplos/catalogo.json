@@ -1,0 +1,50 @@
+[
+  {
+    "pasta": "01-conheca-o-step-by-step",
+    "titulo": "Conheça o Step-by-Step",
+    "descricao": "Um tour pelas funções: slides, código digitado, destaque, terminal, menu de caminhos, laboratório e desafio.",
+    "requer": null
+  },
+  {
+    "pasta": "02-html-e-css",
+    "titulo": "Primeira página com HTML e CSS",
+    "descricao": "Esqueleto HTML, conteúdo, estilo com CSS e o resultado no preview, sem instalar nada.",
+    "requer": null
+  },
+  {
+    "pasta": "03-javascript-com-node",
+    "titulo": "JavaScript com Node.js",
+    "descricao": "Variáveis, listas, repetição e funções, executando cada arquivo no terminal.",
+    "requer": "Node.js"
+  },
+  {
+    "pasta": "04-python-do-zero",
+    "titulo": "Python do zero",
+    "descricao": "print, variáveis, if, for, funções e um laboratório para mexer ao vivo.",
+    "requer": "Python"
+  },
+  {
+    "pasta": "05-php-introducao",
+    "titulo": "Introdução ao PHP",
+    "descricao": "Do primeiro echo a uma página com o servidor embutido do PHP.",
+    "requer": "PHP"
+  },
+  {
+    "pasta": "06-git-basico",
+    "titulo": "Git básico",
+    "descricao": "init, add, commit, diff, log, branches e merge, passo a passo no terminal.",
+    "requer": "Git"
+  },
+  {
+    "pasta": "07-escolha-sua-trilha",
+    "titulo": "Escolha sua trilha",
+    "descricao": "Aula com caminhos: a turma escolhe JavaScript ou Python e as trilhas se encontram no final.",
+    "requer": "Node.js ou Python"
+  },
+  {
+    "pasta": "08-galeria-de-slides",
+    "titulo": "Galeria de slides em HTML",
+    "descricao": "Modelos para copiar: capa animada, tópicos, duas colunas, contador, linha do tempo, quiz e botão que roda comando.",
+    "requer": null
+  }
+]
