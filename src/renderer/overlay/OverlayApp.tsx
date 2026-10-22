@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { PresentationStyle, StagePayload } from '../../shared/presentation'
-import { ChallengeView, Markdown, SlideView } from '../common/StageViews'
-import { PARAMS, useConnection } from './connection'
+import { ChallengeView, Markdown, SlideView, TransitionStack } from '../common/StageViews'
+import { PARAMS, SERVER, useConnection } from './connection'
 import { usePresentationStyle, useStage } from './style'
 import { AppWindow, Page } from './Frame'
 import { CodeContent } from './CodeContent'
@@ -32,18 +32,23 @@ const FitArea = ({ children }: { children: React.ReactNode }): React.JSX.Element
   <div className="min-h-0 w-full flex-1">{children}</div>
 )
 
-/** Translucent card for slides and challenges, readable over any background. */
+/**
+ * Translucent card for slides and challenges, readable over any background.
+ * `plain` (HTML slides) leaves the background to the slide's own design.
+ */
 const Card = ({
   style,
+  plain = false,
   children
 }: {
   style: PresentationStyle
+  plain?: boolean
   children: React.ReactNode
 }): React.JSX.Element => (
   <div
-    className="h-full w-full overflow-hidden text-white backdrop-blur-md"
+    className={`h-full w-full overflow-hidden text-white ${plain ? '' : 'backdrop-blur-md'}`}
     style={{
-      background: 'rgba(10, 12, 20, 0.55)',
+      background: plain ? 'transparent' : 'rgba(10, 12, 20, 0.55)',
       borderRadius: style.radius,
       boxShadow: style.shadow ? '0 30px 80px rgba(0,0,0,0.45)' : 'none'
     }}
@@ -53,6 +58,27 @@ const Card = ({
 )
 
 type Part = 'code' | 'terminal' | 'slide' | 'auto'
+
+/** What the page shows: the stage view for "auto", otherwise the page's own part. */
+function viewFor(stage: StagePayload | null, part: Part): string {
+  if (part === 'auto') return stage?.view ?? 'code'
+  if (part === 'slide') {
+    return stage?.view === 'challenge' || (!stage?.slide && stage?.challenge)
+      ? 'challenge'
+      : 'slide'
+  }
+  return part
+}
+
+/** The slide takes the whole page (option of the slide or of the style). */
+function isFullscreenSlide(
+  stage: StagePayload | null,
+  part: Part,
+  style: PresentationStyle
+): boolean {
+  if (viewFor(stage, part) !== 'slide' || !stage?.slide) return false
+  return stage.slide.fullscreen ?? style.slideFullscreen
+}
 
 /** The window with whatever `part` shows (or the current stage view for "auto"). */
 const StageContent = ({
@@ -69,20 +95,26 @@ const StageContent = ({
   const bg = ready?.bg ?? '#1e1e1e'
   const fg = ready?.fg ?? '#d4d4d4'
   const clockOffset = useConnection((s) => s.clockOffset)
-  const view =
-    part === 'auto'
-      ? (stage?.view ?? 'code')
-      : part === 'slide'
-        ? stage?.view === 'challenge' || (!stage?.slide && stage?.challenge)
-          ? 'challenge'
-          : 'slide'
-        : part
+  const view = viewFor(stage, part)
+
+  if (view === 'slide' && stage?.slide) {
+    const slide = stage.slide
+    return (
+      <Card style={style} plain={!!slide.htmlPath}>
+        <TransitionStack
+          itemKey={slide.key}
+          data={slide}
+          transition={slide.transition ?? style.slideTransition}
+          duration={style.slideTransitionMs}
+          render={(s) => <SlideView slide={s} fontSize={style.slideFontSize} server={SERVER} />}
+        />
+      </Card>
+    )
+  }
 
   if (view === 'slide' || view === 'challenge') {
     const content =
-      view === 'slide' && stage?.slide ? (
-        <SlideView slide={stage.slide} fontSize={style.slideFontSize} />
-      ) : view === 'challenge' && stage?.challenge ? (
+      view === 'challenge' && stage?.challenge ? (
         <ChallengeView
           challenge={stage.challenge}
           fontSize={style.slideFontSize}
@@ -130,13 +162,35 @@ const StageContent = ({
 }
 
 const StagePage = ({ part }: { part: Part }): React.JSX.Element => {
-  const style = usePresentationStyle()
+  const baseStyle = usePresentationStyle()
   const stage = useStage()
+  const fullscreen = isFullscreenSlide(stage, part, baseStyle)
+  const style = fullscreen ? { ...baseStyle, padding: 0, radius: 0, shadow: false } : baseStyle
   const ready = useHighlighter(style.theme, stage?.code?.language ?? 'text')
   const showCaption = part === 'auto' && style.captionPosition !== 'none'
   const caption = showCaption ? (
     <Caption text={stage?.caption ?? ''} size={style.captionSize} />
   ) : null
+
+  if (fullscreen) {
+    // The caption floats over a full screen slide instead of taking space from it.
+    return (
+      <Page style={style}>
+        <FitArea>
+          <StageContent stage={stage} style={style} part={part} ready={ready} />
+        </FitArea>
+        {caption && (
+          <div
+            className={`pointer-events-none absolute inset-x-0 ${
+              style.captionPosition === 'top' ? 'top-[3%]' : 'bottom-[3%]'
+            }`}
+          >
+            {caption}
+          </div>
+        )}
+      </Page>
+    )
+  }
 
   return (
     <Page style={style}>

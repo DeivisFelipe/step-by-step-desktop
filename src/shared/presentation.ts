@@ -22,10 +22,44 @@ export interface StageCode {
   version: number
 }
 
+export type SlideTransition =
+  | 'none'
+  | 'fade'
+  | 'slide-left'
+  | 'slide-up'
+  | 'zoom'
+  | 'blur'
+  | 'flip'
+  | 'wipe'
+
+export const SLIDE_TRANSITIONS: { value: SlideTransition; label: string }[] = [
+  { value: 'none', label: 'Nenhuma' },
+  { value: 'fade', label: 'Esmaecer' },
+  { value: 'slide-left', label: 'Deslizar para o lado' },
+  { value: 'slide-up', label: 'Deslizar para cima' },
+  { value: 'zoom', label: 'Zoom' },
+  { value: 'blur', label: 'Desfoque' },
+  { value: 'flip', label: 'Girar (3D)' },
+  { value: 'wipe', label: 'Cortina' }
+]
+
+/** HTML slides are designed for this size and scaled to fit. */
+export const HTML_SLIDE_SIZE = { width: 1920, height: 1080 }
+
 export interface StageSlide {
   markdown: string
   /** URL already resolved by the IDE (workspace files go through the local server). */
   image?: string
+  /** HTML slide served by the presentation server: a path like /slides/abc (no origin). */
+  htmlPath?: string
+  /** Source of the HTML slide (the IDE serves it again after a restart: same content, same path). */
+  html?: string
+  /** Overrides the style's transition. */
+  transition?: SlideTransition
+  /** Overrides the style's full screen option. */
+  fullscreen?: boolean
+  /** Changes every time a slide is shown, so the transition plays. */
+  key: number
 }
 
 export interface StageChallenge {
@@ -111,6 +145,11 @@ export interface PresentationStyle {
   terminalFontSize: number
   /** Largest slide/challenge font; long slides shrink to fit. */
   slideFontSize: number
+  /** Animation between slides. */
+  slideTransition: SlideTransition
+  slideTransitionMs: number
+  /** Slides take the whole page (no margin around them). */
+  slideFullscreen: boolean
   fontFamily: string
   lineNumbers: boolean
   shadow: boolean
@@ -170,6 +209,9 @@ export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
     fontSize: 32,
     terminalFontSize: 30,
     slideFontSize: 48,
+    slideTransition: 'fade',
+    slideTransitionMs: 600,
+    slideFullscreen: false,
     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     lineNumbers: true,
     shadow: true,
@@ -189,6 +231,9 @@ export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
     fontSize: 32,
     terminalFontSize: 30,
     slideFontSize: 48,
+    slideTransition: 'fade',
+    slideTransitionMs: 600,
+    slideFullscreen: false,
     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     lineNumbers: true,
     shadow: true,
@@ -208,6 +253,9 @@ export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
     fontSize: 32,
     terminalFontSize: 30,
     slideFontSize: 48,
+    slideTransition: 'fade',
+    slideTransitionMs: 600,
+    slideFullscreen: false,
     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     lineNumbers: true,
     shadow: true,
@@ -227,6 +275,9 @@ export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
     fontSize: 32,
     terminalFontSize: 30,
     slideFontSize: 48,
+    slideTransition: 'fade',
+    slideTransitionMs: 600,
+    slideFullscreen: false,
     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     lineNumbers: true,
     shadow: false,
@@ -246,6 +297,9 @@ export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
     fontSize: 30,
     terminalFontSize: 26,
     slideFontSize: 44,
+    slideTransition: 'fade',
+    slideTransitionMs: 600,
+    slideFullscreen: false,
     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     lineNumbers: false,
     shadow: true,

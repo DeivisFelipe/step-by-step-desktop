@@ -1,8 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { StageChallenge, StageSlide } from '../../shared/presentation'
+import {
+  HTML_SLIDE_SIZE,
+  SlideTransition,
+  StageChallenge,
+  StageSlide
+} from '../../shared/presentation'
 import { renderMarkdown } from './markdown'
 import { formatClock } from './format'
 import './markdown.css'
+import './transitions.css'
 
 export const Markdown = ({
   source,
@@ -47,15 +53,70 @@ function useFitFont(max: number, content: unknown): React.RefObject<HTMLDivEleme
   return ref
 }
 
-/** A slide: Markdown, optionally next to an image. Long slides shrink to fit. */
+/**
+ * An HTML slide: a page of the presentation server drawn at 1920×1080 and scaled to fit,
+ * so it looks the same in the app, on stage and on the students' page.
+ */
+export const HtmlSlide = ({ src }: { src: string }): React.JSX.Element => {
+  const ref = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = (): void =>
+      setScale(
+        Math.min(el.clientWidth / HTML_SLIDE_SIZE.width, el.clientHeight / HTML_SLIDE_SIZE.height)
+      )
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+  return (
+    <div ref={ref} className="relative h-full w-full overflow-hidden">
+      {scale > 0 && (
+        <iframe
+          src={src}
+          title="Slide"
+          // Scripts run, but the slide cannot reach the app or the server's other pages.
+          sandbox="allow-scripts"
+          className="absolute left-1/2 top-1/2 border-0 bg-transparent"
+          style={{
+            width: HTML_SLIDE_SIZE.width,
+            height: HTML_SLIDE_SIZE.height,
+            transform: `translate(-50%, -50%) scale(${scale})`
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * A slide: Markdown (optionally next to an image, shrinking to fit) or HTML.
+ * `server` is the presentation server's origin, used for HTML slides.
+ */
 export const SlideView = ({
   slide,
-  fontSize = 28
+  fontSize = 28,
+  server = ''
 }: {
-  slide: StageSlide
+  slide: Omit<StageSlide, 'key'>
   fontSize?: number
+  server?: string
 }): React.JSX.Element => {
-  const ref = useFitFont(fontSize, slide)
+  if (slide.htmlPath) return <HtmlSlide src={server + slide.htmlPath} />
+  return <MarkdownSlide slide={slide} fontSize={fontSize} />
+}
+
+const MarkdownSlide = ({
+  slide,
+  fontSize
+}: {
+  slide: Omit<StageSlide, 'key'>
+  fontSize: number
+}): React.JSX.Element => {
+  const ref = useFitFont(fontSize, slide.markdown + (slide.image ?? ''))
   return (
     <div
       ref={ref}
@@ -72,6 +133,62 @@ export const SlideView = ({
           className={`max-h-full rounded-lg object-contain ${slide.markdown.trim() ? 'max-w-[45%]' : 'max-w-full'}`}
         />
       )}
+    </div>
+  )
+}
+
+interface Layer<T> {
+  key: number | string
+  data: T
+}
+
+/**
+ * Shows `data` and animates the change when `itemKey` changes: the previous content
+ * leaves while the new one enters, with the given transition.
+ */
+export function TransitionStack<T>({
+  itemKey,
+  data,
+  transition,
+  duration,
+  render
+}: {
+  itemKey: number | string
+  data: T
+  transition: SlideTransition
+  duration: number
+  render: (data: T) => React.ReactNode
+}): React.JSX.Element {
+  const [current, setCurrent] = useState<Layer<T>>({ key: itemKey, data })
+  const [leaving, setLeaving] = useState<Layer<T>[]>([])
+  const [kind, setKind] = useState<SlideTransition>(transition)
+
+  // Derived state: a new key starts a transition (React's "adjust state on prop change").
+  if (current.key !== itemKey) {
+    setLeaving(transition === 'none' ? [] : [...leaving, current])
+    setKind(transition)
+    setCurrent({ key: itemKey, data })
+  } else if (current.data !== data) {
+    setCurrent({ key: itemKey, data })
+  }
+
+  useEffect(() => {
+    if (leaving.length === 0) return
+    const timer = setTimeout(() => setLeaving([]), duration + 50)
+    return () => clearTimeout(timer)
+  }, [leaving, duration])
+
+  const animated = kind !== 'none'
+  return (
+    <div className="sst-stage" style={{ '--sst-ms': `${duration}ms` } as React.CSSProperties}>
+      {leaving.map((layer) => (
+        <div key={layer.key} className={`sst-layer sst-out sst-${kind}`}>
+          {render(layer.data)}
+        </div>
+      ))}
+      <div key={current.key} className={animated ? `sst-layer sst-in sst-${kind}` : 'sst-layer'}>
+        {render(current.data)}
+      </div>
     </div>
   )
 }

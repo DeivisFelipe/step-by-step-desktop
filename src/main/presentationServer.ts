@@ -1,4 +1,5 @@
 import http from 'http'
+import { createHash } from 'crypto'
 import os from 'os'
 import * as fs from 'fs'
 import { extname, join, normalize, relative, sep } from 'path'
@@ -57,6 +58,8 @@ export class PresentationServer {
   private stage: StagePayload | null = null
   private presenter: PresenterPayload | null = null
   private terminals = new Map<number, TerminalSegment[]>()
+  /** HTML slides by content hash (the newest ones are kept). */
+  private slides = new Map<string, string>()
   private workspace: string | null = null
   private settings: AppSettings
   private port = 0
@@ -201,6 +204,15 @@ export class PresentationServer {
     this.broadcast('terminal-size', { id, cols, rows })
   }
 
+  /** Serves an HTML slide; returns its path (/slides/<hash>). */
+  registerSlide(html: string): string {
+    const id = createHash('sha1').update(html).digest('hex').slice(0, 16)
+    this.slides.delete(id)
+    this.slides.set(id, html)
+    while (this.slides.size > 200) this.slides.delete(this.slides.keys().next().value!)
+    return `/slides/${id}`
+  }
+
   terminalClosed(id: number): void {
     this.terminals.delete(id)
   }
@@ -258,6 +270,7 @@ export class PresentationServer {
     }
 
     if (path.startsWith('/arquivos/')) return this.serveWorkspaceFile(path.slice(10), res)
+    if (path.startsWith('/slides/')) return this.serveSlide(path.slice(8), res)
 
     const page = path.replace(/^\/+|\/+$/g, '')
     if (page === '') return this.serveIndex(res)
@@ -315,6 +328,32 @@ export class PresentationServer {
         `<body style="font-family:system-ui;background:#111827;color:#e5e7eb;padding:32px">` +
         `<h1>Step-by-Step Code</h1><ul style="line-height:2">${links}</ul></body>`
     )
+  }
+
+  /**
+   * An HTML slide as its own page, so its scripts run (inline in the app they would be
+   * blocked by the app's security policy). Relative paths point to the workspace files.
+   */
+  private serveSlide(id: string, res: http.ServerResponse): void {
+    const html = this.slides.get(id)
+    if (html === undefined) {
+      res.writeHead(404).end('Slide não encontrado')
+      return
+    }
+    const head =
+      '<meta charset="utf-8"><base href="/arquivos/"><style>' +
+      'html,body{margin:0;width:100%;height:100%;overflow:hidden}' +
+      "body{font-family:Inter,'Segoe UI',system-ui,sans-serif;color:#fff}</style>"
+    let page: string
+    if (!/<html[\s>]/i.test(html)) {
+      page = `<!doctype html><html><head>${head}</head><body>${html}</body></html>`
+    } else if (/<head[^>]*>/i.test(html)) {
+      page = html.replace(/<head[^>]*>/i, (tag) => tag + head)
+    } else {
+      page = html.replace(/<html[^>]*>/i, (tag) => `${tag}<head>${head}</head>`)
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' })
+    res.end(page)
   }
 
   private serveWorkspaceFile(relPath: string, res: http.ServerResponse): void {

@@ -39,6 +39,7 @@ const api: CustomAPI = {
   onSettingsChanged: (callback) => listen('settings:changed', callback),
 
   getServerInfo: () => ipcRenderer.invoke('server:info'),
+  registerSlide: (html) => ipcRenderer.invoke('slide:register', html),
   onServerInfo: (callback) => listen('server:info', callback),
   publishStage: (payload) => ipcRenderer.send('stage:publish', payload),
   publishPresenter: (payload) => ipcRenderer.send('presenter:publish', payload),

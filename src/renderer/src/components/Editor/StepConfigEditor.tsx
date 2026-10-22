@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import Editor from '@monaco-editor/react'
 import {
@@ -33,7 +33,8 @@ import {
   TerminalAction,
   WaitAction
 } from '../../types/schema'
-import { ACTION_LABELS, findNode, findPlaceholders } from '../../lib/tree'
+import { ACTION_LABELS, findNode, findPlaceholders, resolvePlaceholders } from '../../lib/tree'
+import { SLIDE_TRANSITIONS, SlideTransition } from '../../../../shared/presentation'
 import { languageFromPath } from '../../lib/paths'
 import { describeAction, resolveAssetUrl } from '../../engine/ExecutionEngine'
 import { deleteNode } from '../../lib/lessonActions'
@@ -446,36 +447,172 @@ const WaitActionForm = ({ action, update }: FormProps<WaitAction>): React.JSX.El
   </div>
 )
 
-const SlideActionForm = ({ action, update }: FormProps<SlideAction>): React.JSX.Element => (
-  <div className="space-y-4">
-    <div className="grid grid-cols-2 gap-4">
-      <Field title="Conteúdo (Markdown)">
-        <textarea
-          className={clsx(input, 'h-48 w-full resize-y font-mono')}
-          value={action.markdown}
-          onChange={(e) => update({ markdown: e.target.value })}
-        />
-      </Field>
-      <Field title="Prévia">
-        <div className="h-48 overflow-hidden rounded border border-ide-border bg-[#111827] text-white">
-          <SlideView
-            slide={{ markdown: action.markdown, image: resolveAssetUrl(action.image) }}
-            fontSize={11}
+const HTML_SLIDE_TEMPLATE = `<style>
+  body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    background: radial-gradient(circle at 30% 20%, #4f46e5, #0f172a 70%);
+  }
+  h1 {
+    margin: 0;
+    font-size: 120px;
+    animation: entrar 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  p {
+    margin: 0;
+    font-size: 48px;
+    opacity: 0.85;
+    animation: entrar 900ms 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  @keyframes entrar {
+    from {
+      opacity: 0;
+      transform: translateY(60px);
+    }
+  }
+</style>
+
+<h1>Título do slide</h1>
+<p>Feito em HTML, com animação</p>
+`
+
+/** Serves the HTML being edited (debounced) and returns its path on the presentation server. */
+function useHtmlSlidePath(html: string): string | null {
+  const [path, setPath] = useState<string | null>(null)
+  useEffect(() => {
+    if (!html.trim()) return
+    const timer = setTimeout(() => {
+      window.api.registerSlide(resolvePlaceholders(html)).then(setPath)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [html])
+  return html.trim() ? path : null
+}
+
+const SlideActionForm = ({ action, update }: FormProps<SlideAction>): React.JSX.Element => {
+  const html = action.format === 'html'
+  const htmlPath = useHtmlSlidePath(html ? (action.html ?? '') : '')
+  const server = useSettingsStore((s) => s.server?.localUrl ?? '')
+  const tab = (active: boolean): string =>
+    clsx(
+      'rounded px-3 py-1 text-[12px]',
+      active ? 'bg-ide-accent text-white' : 'bg-ide-input text-gray-300 hover:bg-ide-border'
+    )
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button className={tab(!html)} onClick={() => update({ format: 'markdown' })}>
+          Markdown
+        </button>
+        <button
+          className={tab(html)}
+          onClick={() =>
+            update({
+              format: 'html',
+              html: action.html?.trim() ? action.html : HTML_SLIDE_TEMPLATE
+            })
+          }
+        >
+          HTML
+        </button>
+        <span className="text-[11px] text-ide-muted">
+          {html
+            ? 'Página própria em 1920×1080: pode usar <style>, <script> e animações CSS.'
+            : 'Texto formatado; diminui sozinho para caber.'}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {html ? (
+          <Field
+            title="HTML"
+            hint="Arquivos da pasta aberta por caminho relativo (ex.: imagens/foto.png)."
+          >
+            <textarea
+              className={clsx(input, 'h-64 w-full resize-y font-mono')}
+              value={action.html ?? ''}
+              onChange={(e) => update({ html: e.target.value })}
+              spellCheck={false}
+            />
+          </Field>
+        ) : (
+          <Field title="Conteúdo (Markdown)">
+            <textarea
+              className={clsx(input, 'h-48 w-full resize-y font-mono')}
+              value={action.markdown}
+              onChange={(e) => update({ markdown: e.target.value })}
+            />
+          </Field>
+        )}
+        <Field title="Prévia">
+          <div
+            className={clsx(
+              'overflow-hidden rounded border border-ide-border bg-[#111827] text-white',
+              html ? 'aspect-video' : 'h-48'
+            )}
+          >
+            {html ? (
+              htmlPath && <SlideView slide={{ markdown: '', htmlPath }} server={server} />
+            ) : (
+              <SlideView
+                slide={{ markdown: action.markdown, image: resolveAssetUrl(action.image) }}
+                fontSize={11}
+              />
+            )}
+          </div>
+        </Field>
+      </div>
+
+      {!html && (
+        <Field title="Imagem (opcional)" hint="Caminho relativo à pasta aberta ou URL.">
+          <input
+            className={clsx(input, 'w-full font-mono')}
+            value={action.image ?? ''}
+            placeholder="imagens/diagrama.png"
+            onChange={(e) => update({ image: e.target.value })}
+            spellCheck={false}
           />
-        </div>
-      </Field>
+        </Field>
+      )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <Field title="Transição" hint="Animação ao entrar este slide.">
+          <select
+            className={clsx(input, 'w-full')}
+            value={action.transition ?? ''}
+            onChange={(e) =>
+              update({ transition: (e.target.value || undefined) as SlideTransition | undefined })
+            }
+          >
+            <option value="">Padrão do estilo</option>
+            {SLIDE_TRANSITIONS.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field title="Tela cheia" hint="Ocupa a página inteira do palco, sem margens.">
+          <select
+            className={clsx(input, 'w-full')}
+            value={action.fullscreen === undefined ? '' : action.fullscreen ? 'sim' : 'nao'}
+            onChange={(e) =>
+              update({ fullscreen: e.target.value ? e.target.value === 'sim' : undefined })
+            }
+          >
+            <option value="">Padrão do estilo</option>
+            <option value="sim">Sim</option>
+            <option value="nao">Não</option>
+          </select>
+        </Field>
+      </div>
     </div>
-    <Field title="Imagem (opcional)" hint="Caminho relativo à pasta aberta ou URL.">
-      <input
-        className={clsx(input, 'w-full font-mono')}
-        value={action.image ?? ''}
-        placeholder="imagens/diagrama.png"
-        onChange={(e) => update({ image: e.target.value })}
-        spellCheck={false}
-      />
-    </Field>
-  </div>
-)
+  )
+}
 
 const HighlightActionForm = ({ action, update }: FormProps<HighlightAction>): React.JSX.Element => (
   <div className="space-y-4">

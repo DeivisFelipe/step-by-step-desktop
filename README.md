@@ -25,7 +25,7 @@ Baixe o `step-by-step-code-x.y.z-setup.exe` da [página de releases](https://git
   - **Código em arquivo**: criar, acrescentar ao final, inserir no início, inserir depois de um texto, substituir um texto, inserir no cursor, sobrescrever ou excluir. Animação de **digitação** (com velocidade ajustável e pausas naturais), de **transformação suave** (magic move) ou nenhuma.
   - **Comando no terminal**: digita (e opcionalmente executa) o comando, em um terminal com nome. Um nome novo cria outro terminal, útil para deixar um servidor rodando.
   - **Esperar o terminal**: segura a aula até aparecer um texto (ex.: `ready in`) ou `/regex/`.
-  - **Slide**: Markdown e imagem.
+  - **Slide**: Markdown e imagem, ou **HTML** com estilos, scripts e animações próprios (pensado para 1920×1080). Transições entre slides (esmaecer, deslizar, zoom, desfoque, girar 3D, cortina) e opção de tela cheia.
   - **Destacar linhas**: escurece o resto do arquivo e mostra uma explicação num balão.
   - **Desafio**: enunciado com cronômetro.
   - **Preview**: mostra uma página (URL ou arquivo do projeto).

@@ -2,7 +2,7 @@ import clsx from 'clsx'
 import { FolderPlus, Plus, RotateCcw, SkipBack, SkipForward, StickyNote } from 'lucide-react'
 import { useLessonStore } from '../../store/useLessonStore'
 import { useIDEStore } from '../../store/useIDEStore'
-import { getNextStep, usePlayerStore } from '../../store/usePlayerStore'
+import { executedCount, getNextStep, usePlayerStore } from '../../store/usePlayerStore'
 import { usePauseStore } from '../../engine/ExecutionEngine'
 import { flattenSteps } from '../../lib/tree'
 import { chooseWorkspace } from '../../lib/workspace'
@@ -52,11 +52,11 @@ const PlayerControls = (): React.JSX.Element => {
         <div className="h-1 flex-1 overflow-hidden rounded bg-ide-input">
           <div
             className="h-full bg-green-500 transition-all"
-            style={{ width: total ? `${(history.length / total) * 100}%` : 0 }}
+            style={{ width: total ? `${(executedCount(history) / total) * 100}%` : 0 }}
           />
         </div>
         <span className="tabular-nums">
-          {history.length}/{total}
+          {executedCount(history)}/{total}
         </span>
       </div>
     </div>
