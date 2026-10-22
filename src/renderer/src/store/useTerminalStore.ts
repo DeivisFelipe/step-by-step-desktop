@@ -5,6 +5,8 @@ export interface TerminalSession {
   name: string
   /** Shell executable; empty = the first available one. */
   shell?: string
+  /** Column limit for this terminal (a side-by-side lab); empty = the app setting. */
+  columns?: number
 }
 
 interface TerminalStore {
@@ -24,6 +26,7 @@ interface TerminalStore {
   /** Whether a terminal with this name exists (no name = the active one, always true). */
   has: (name?: string) => boolean
   setSplit: (split: boolean) => void
+  setColumns: (key: string, columns: number | undefined) => void
   /** Closes every terminal and starts a single fresh one (used by "Reset"). */
   resetAll: () => void
 }
@@ -73,6 +76,10 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   },
 
   setSplit: (split) => set({ split }),
+  setColumns: (key, columns) =>
+    set((state) => ({
+      sessions: state.sessions.map((s) => (s.key === key ? { ...s, columns } : s))
+    })),
 
   resetAll: () => {
     counter++

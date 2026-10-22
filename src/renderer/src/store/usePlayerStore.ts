@@ -7,9 +7,13 @@ import {
   revertChanges,
   skipAnimation,
   resumeStep,
+  chooseOption,
+  cancelWaiting,
+  usePauseStore,
+  terminalFor,
   StepError
 } from '../engine/ExecutionEngine'
-import { findNode, flattenSteps } from '../lib/tree'
+import { findNode, flattenSteps, nextStepOf } from '../lib/tree'
 import { joinPath } from '../lib/paths'
 import { LessonNode } from '../types/schema'
 import { LESSON_DIR, useLessonStore } from './useLessonStore'
@@ -26,6 +30,10 @@ interface HistoryEntry {
   stage: StageSnapshot
   /** Terminals the step used; undo stops what it left running there. */
   terminals?: TerminalUse[]
+  /** Step chosen by a menu, condition or "go to"; absent = the next one of the list. */
+  next?: string
+  /** Lesson variables before the step, restored on undo. */
+  variables?: Record<string, string>
 }
 
 interface Chapter {
@@ -35,6 +43,7 @@ interface Chapter {
 
 interface SessionFile {
   history: HistoryEntry[]
+  variables?: Record<string, string>
   sessionStartedAt: number | null
   chapters: Chapter[]
 }
@@ -42,6 +51,8 @@ interface SessionFile {
 interface PlayerStore {
   /** Executed steps, in the order they ran. */
   history: HistoryEntry[]
+  /** Values saved by menus (used by "Se / senão" conditions). */
+  variables: Record<string, string>
   runningStepId: string | null
   /** When the first step of the session ran (for the timer and chapters). */
   sessionStartedAt: number | null
@@ -50,6 +61,13 @@ interface PlayerStore {
 
   runStep: (id: string, options?: { instant?: boolean }) => Promise<boolean>
   runNext: () => Promise<void>
+  /**
+   * Picks a menu option (index or label). With no menu waiting, runs the step with
+   * that number or title (proximoPasso() in HTML slides).
+   */
+  choose: (value: number | string) => Promise<void>
+  /** Runs a command in a terminal (play buttons of HTML slides). */
+  runCommand: (command: string, terminal?: string) => Promise<void>
   undoLast: () => Promise<boolean>
   /** Runs (or undoes) steps until `id` is the last executed one. */
   goTo: (id: string) => Promise<void>
@@ -65,11 +83,7 @@ export const START_SNAPSHOT_DIR = 'inicio'
 
 /** The step that "Next" would run. */
 export function getNextStep(tree: LessonNode[], history: HistoryEntry[]): LessonNode | null {
-  const steps = flattenSteps(tree)
-  if (history.length === 0) return steps[0] ?? null
-  const last = history[history.length - 1].stepId
-  const index = steps.findIndex((s) => s.id === last)
-  return index === -1 ? null : (steps[index + 1] ?? null)
+  return nextStepOf(tree, history)
 }
 
 /** Steps already executed; a step run again (double click) counts once. */
@@ -98,6 +112,7 @@ function closeStageTabs(stage: StageSnapshot): void {
 
 export const usePlayerStore = create<PlayerStore>((set, get) => ({
   history: [],
+  variables: {},
   runningStepId: null,
   sessionStartedAt: null,
   stepStartedAt: null,
@@ -137,7 +152,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     useLessonStore.getState().selectNode(id)
 
     const stageBefore = useStageStore.getState().snapshot()
-    const run = await executeStep(step, options)
+    const variablesBefore = get().variables
+    const run = await executeStep(step, { ...options, variables: variablesBefore })
     if (run.error) {
       // A failed step leaves the project as it was (terminal commands excepted).
       try {
@@ -150,13 +166,23 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       }
     } else {
       set((state) => ({
+        variables: run.variables,
         history: [
           ...state.history,
-          { stepId: id, changes: run.changes, stage: stageBefore, terminals: run.terminals }
+          {
+            stepId: id,
+            changes: run.changes,
+            stage: stageBefore,
+            terminals: run.terminals,
+            next: run.next,
+            variables: variablesBefore
+          }
         ]
       }))
     }
     set({ runningStepId: null })
+    // A menu option was picked: its step runs right away.
+    if (!run.error && run.advance) setTimeout(() => get().runNext(), 0)
 
     if (run.error) {
       if (run.error instanceof StepError) {
@@ -180,8 +206,60 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     await get().runStep(next.id)
   },
 
+  choose: async (value) => {
+    const pause = usePauseStore.getState()
+    if (pause.kind === 'choice' && pause.choice) {
+      const index =
+        typeof value === 'number'
+          ? value
+          : pause.choice.options.findIndex(
+              (o) => o.trim().toLowerCase() === value.trim().toLowerCase()
+            )
+      if (!chooseOption(index)) {
+        useIDEStore.getState().notify(`O menu não tem a opção "${value}".`, 'warning')
+      }
+      return
+    }
+    if (get().runningStepId) return
+    // No menu waiting: go to the step with that number (as in "Passo 3") or title.
+    const steps = flattenSteps(useLessonStore.getState().tree)
+    const step =
+      typeof value === 'number'
+        ? steps[value - 1]
+        : steps.find((s) => s.title.trim().toLowerCase() === value.trim().toLowerCase())
+    if (!step) {
+      useIDEStore.getState().notify(`Passo "${value}" não encontrado.`, 'warning')
+      return
+    }
+    await get().runStep(step.id)
+  },
+
+  runCommand: async (command, terminal) => {
+    const uses: TerminalUse[] = []
+    try {
+      const { key, id } = await terminalFor(terminal, (use) => uses.push(use))
+      const stage = useStageStore.getState()
+      stage.setTerminal(key)
+      if (stage.view !== 'lab') stage.setView('terminal', true)
+      else stage.setLabTab('terminal')
+      window.api.sendTerminalInput(id, command.replace(/\r?\n/g, '\r') + '\r')
+    } catch (e) {
+      reportError(e, 'Não foi possível rodar o comando')
+      return
+    }
+    // Undo of the current step also stops what the button started.
+    set((state) => {
+      const last = state.history[state.history.length - 1]
+      if (!last) return {}
+      const terminals = [...(last.terminals ?? [])]
+      for (const use of uses) if (!terminals.some((t) => t.key === use.key)) terminals.push(use)
+      return { history: [...state.history.slice(0, -1), { ...last, terminals }] }
+    })
+  },
+
   undoLast: async () => {
-    if (get().runningStepId) return false
+    // A step waiting for the presenter (menu, lab, command) is cancelled instead.
+    if (get().runningStepId) return cancelWaiting() && false
     const last = get().history[get().history.length - 1]
     if (!last) return false
     try {
@@ -189,7 +267,10 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       stopTerminals(last.terminals ?? [])
       useStageStore.getState().restore(last.stage)
       closeStageTabs(last.stage)
-      set((state) => ({ history: state.history.slice(0, -1) }))
+      set((state) => ({
+        history: state.history.slice(0, -1),
+        variables: last.variables ?? state.variables
+      }))
       if (last.terminals?.length) {
         useIDEStore
           .getState()
@@ -269,7 +350,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     closeStageTabs(useStageStore.getState().snapshot())
     // Fresh terminals: servers and other processes started by the lesson stop.
     useTerminalStore.getState().resetAll()
-    set({ history: [], sessionStartedAt: null, stepStartedAt: null, chapters: [] })
+    set({ history: [], variables: {}, sessionStartedAt: null, stepStartedAt: null, chapters: [] })
     useIDEStore.getState().notify('Aula resetada.', 'success')
   },
 
@@ -280,6 +361,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   clear: () =>
     set({
       history: [],
+      variables: {},
       runningStepId: null,
       sessionStartedAt: null,
       stepStartedAt: null,
@@ -295,6 +377,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       const session = JSON.parse(raw) as SessionFile
       set({
         history: Array.isArray(session.history) ? session.history : [],
+        variables: session.variables ?? {},
         sessionStartedAt: session.sessionStartedAt ?? null,
         chapters: Array.isArray(session.chapters) ? session.chapters : []
       })
@@ -334,12 +417,19 @@ let loadingSession = false
 
 usePlayerStore.subscribe((state, prev) => {
   if (loadingSession) return
-  if (state.history === prev.history && state.chapters === prev.chapters) return
+  if (
+    state.history === prev.history &&
+    state.chapters === prev.chapters &&
+    state.variables === prev.variables
+  ) {
+    return
+  }
   const root = useFileSystemStore.getState().rootPath
   if (!root) return
   // Captured now so a later workspace switch can't write this data elsewhere.
   const file: SessionFile = {
     history: state.history,
+    variables: state.variables,
     sessionStartedAt: state.sessionStartedAt,
     chapters: state.chapters
   }

@@ -13,7 +13,7 @@ const PlayerControls = (): React.JSX.Element => {
   const tree = useLessonStore((s) => s.tree)
   const history = usePlayerStore((s) => s.history)
   const running = usePlayerStore((s) => s.runningStepId !== null)
-  const paused = usePauseStore((s) => s.paused)
+  const waiting = usePauseStore((s) => s.kind)
   const total = flattenSteps(tree).length
   const next = getNextStep(tree, history)
 
@@ -33,19 +33,26 @@ const PlayerControls = (): React.JSX.Element => {
         </button>
         <button
           className={clsx(button, 'flex-1 bg-ide-input hover:bg-ide-border')}
-          title="Voltar um passo (Shift+F8)"
-          disabled={running || history.length === 0}
+          title={waiting ? 'Cancelar este passo (Shift+F8)' : 'Voltar um passo (Shift+F8)'}
+          disabled={waiting ? false : running || history.length === 0}
           onClick={() => usePlayerStore.getState().undoLast()}
         >
           <SkipBack size={14} /> Voltar
         </button>
         <button
           className={clsx(button, 'flex-1 bg-ide-accent text-white hover:bg-sky-600')}
-          title={paused ? 'Rodar o comando no terminal (F8)' : 'Executar o próximo passo (F8)'}
-          disabled={paused ? false : running || !next}
+          title={
+            waiting === 'terminal'
+              ? 'Rodar o comando no terminal (F8)'
+              : waiting === 'lab'
+                ? 'Sair do laboratório e continuar (F8)'
+                : 'Executar o próximo passo (F8)'
+          }
+          disabled={waiting === 'terminal' || waiting === 'lab' ? false : running || !next}
           onClick={() => usePlayerStore.getState().runNext()}
         >
-          {paused ? 'Rodar comando' : 'Avançar'} <SkipForward size={14} />
+          {waiting === 'terminal' ? 'Rodar comando' : waiting === 'lab' ? 'Continuar' : 'Avançar'}{' '}
+          <SkipForward size={14} />
         </button>
       </div>
       <div className="flex items-center gap-2 text-[11px] text-ide-muted">

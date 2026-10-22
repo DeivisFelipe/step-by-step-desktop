@@ -90,6 +90,35 @@ O conteúdo é o texto esperado (ou `/regex/`); `tempo` em segundos.
 ```
 ````
 
+Opções do slide: `transicao` (`fade`, `slide-left`, `slide-up`, `zoom`, `blur`, `flip`,
+`wipe` ou `none`) e `telacheia="sim"` / `"nao"` (sem eles, vale o estilo da apresentação).
+
+Slide em **HTML**, com estilos, scripts e animações próprios, pensado para 1920×1080.
+Caminhos relativos apontam para a pasta do projeto:
+
+````markdown
+```slide formato="html" transicao="zoom" telacheia="sim"
+<style>
+  body { display: grid; place-items: center; background: #0f172a; }
+  h1 { font-size: 120px; animation: entrar 900ms both; }
+  @keyframes entrar { from { opacity: 0; transform: translateY(60px); } }
+</style>
+<h1>Qual caminho seguimos?</h1>
+<button onclick="proximoPasso(0)">PHP</button>
+<button onclick="proximoPasso(1)">Python</button>
+<button onclick="rodarComando('php -v')">▶ Ver a versão</button>
+```
+````
+
+No slide em HTML existem duas funções:
+
+| Função                        | O que faz                                                                                    |
+| ----------------------------- | -------------------------------------------------------------------------------------------- |
+| `proximoPasso(n)`             | escolhe a opção `n` (0 = primeira) do menu do passo; sem menu, vai ao passo `n` ou ao título |
+| `rodarComando('cmd', 'Nome')` | roda o comando no terminal (o nome é opcional); voltar o passo interrompe o que ele iniciou  |
+
+Os botões funcionam no app e nas páginas abertas com a chave (visão do apresentador).
+
 ### Destacar linhas
 
 ````markdown
@@ -119,6 +148,65 @@ http://localhost:5173
 Câmera
 ```
 ````
+
+### Laboratório (código + terminal)
+
+````markdown
+```laboratorio arquivo="ola.php" layout="lado-a-lado" nome="Lab"
+php ola.php
+```
+````
+
+Abre o arquivo para editar ao vivo e mostra código e terminal juntos no palco
+(`layout`: `lado-a-lado`, `empilhado` ou `abas`). O conteúdo é o comando que o ▶
+(ou `Ctrl+Enter`) roda; `F8` continua a aula.
+
+## Caminhos
+
+Por padrão a aula segue a lista de passos. Estas ações mudam o próximo passo; o destino
+é escrito com o **título do passo** depois de `->`. Sem destino, segue a lista.
+
+### Menu de escolha
+
+````markdown
+```escolha titulo="Qual linguagem?" variavel="trilha"
+PHP -> Introdução ao PHP
+Python -> Introdução ao Python
+```
+````
+
+O passo espera o professor escolher (clique, teclas `1`–`9`, visão do apresentador ou
+`proximoPasso(n)` num slide em HTML) e o passo escolhido roda em seguida. `variavel`
+guarda o texto da opção; `palco="nao"` não mostra o menu para a turma.
+
+### Se / senão
+
+````markdown
+```se
+saida contem "OK" -> Tudo certo
+arquivo existe "vendor/autoload.php" -> Usar o Composer
+arquivo contem "index.php" "echo" -> Rodar o index
+variavel trilha = "PHP" -> Introdução ao PHP
+senao -> Tentar de novo
+```
+````
+
+As linhas são testadas em ordem; a primeira verdadeira decide. `saida contem` olha a saída
+do último comando do terminal (`terminal="Nome"` escolhe qual).
+
+### Ir para
+
+````markdown
+```irpara
+Resumo
+```
+````
+
+Usado no fim de um caminho do menu para voltar ao caminho principal, ou para repetir passos.
+
+No **diagrama do fluxo**, cada opção de menu, condição e "ir para" tem uma bolinha à
+direita do cartão: puxe-a até o passo de destino. A bolinha embaixo do cartão cria um
+"ir para". Selecione uma ligação e aperte Delete para removê-la.
 
 ## Arquivo `.stepbystep/lesson.json`
 

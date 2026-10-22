@@ -22,6 +22,7 @@ import { getNextStep, usePlayerStore } from '../../store/usePlayerStore'
 import { findNode, flattenSteps, primaryKind } from '../../lib/tree'
 import { describeAction } from '../../engine/ExecutionEngine'
 import { openNode } from '../../lib/lessonActions'
+import { branchesOf, isBranchHandle, setBranchTarget, setJump } from '../../lib/branches'
 
 type FlowNode = StepFlowNode | StartFlowNode
 
@@ -31,6 +32,14 @@ const edgeOptions = {
   type: 'smoothstep',
   markerEnd: { type: MarkerType.ArrowClosed },
   style: { strokeWidth: 2 }
+}
+
+const BRANCH_COLORS = { CHOICE: '#e879f9', CONDITION: '#fbbf24', GOTO: '#9ca3af' }
+
+/** Data of a path edge, so removing it clears the path. */
+interface BranchEdgeData extends Record<string, unknown> {
+  stepId: string
+  handle: string
 }
 
 const START_ID = 'start-node'
@@ -60,7 +69,9 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
   const steps = useMemo(() => (flow?.type === 'FLOW' ? (flow.children ?? []) : []), [flow])
 
   const nodes = useMemo<FlowNode[]>(() => {
-    const numbers = new Map(flattenSteps(tree).map((s, i) => [s.id, i + 1]))
+    const all = flattenSteps(tree)
+    const numbers = new Map(all.map((s, i) => [s.id, i + 1]))
+    const inFlow = new Set(steps.map((s) => s.id))
     const executed = new Set(history.map((h) => h.stepId))
     const nextId = getNextStep(tree, history)?.id
     return [
@@ -94,7 +105,21 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
             kind: primaryKind(step),
             executed: executed.has(step.id),
             next: step.id === nextId,
-            running: step.id === runningStepId
+            running: step.id === runningStepId,
+            branches: branchesOf(step).map((b) => {
+              const target = b.target ? all.find((s) => s.id === b.target) : undefined
+              return {
+                handle: b.handle,
+                kind: b.kind,
+                label: b.label,
+                // Targets in other flows can't be drawn here: the card names them.
+                outside:
+                  target && !inFlow.has(target.id)
+                    ? `→ ${numbers.get(target.id)}. ${target.title}`
+                    : undefined,
+                linked: !!target
+              }
+            })
           }
         })
       )
@@ -103,7 +128,17 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
 
   const edges = useMemo<Edge[]>(() => {
     const ids = [START_ID, ...steps.map((s) => s.id)]
-    return ids.slice(1).map((target, i) => ({
+    const inFlow = new Set(ids)
+    // A step whose every path has a target never follows the list: its order link fades.
+    const fixedNext = new Set(
+      steps
+        .filter((s) => {
+          const branches = branchesOf(s)
+          return branches.length > 0 && branches.every((b) => b.target)
+        })
+        .map((s) => s.id)
+    )
+    const sequence: Edge[] = ids.slice(1).map((target, i) => ({
       id: `e-${ids[i]}-${target}`,
       source: ids[i],
       target,
@@ -111,8 +146,37 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
       targetHandle: 'l',
       deletable: true,
       selected: `e-${ids[i]}-${target}` === selectedEdge,
-      ...edgeOptions
+      ...edgeOptions,
+      ...(fixedNext.has(ids[i])
+        ? { style: { strokeWidth: 1.5, strokeDasharray: '4 4', opacity: 0.35 } }
+        : {})
     }))
+    const paths: Edge[] = steps.flatMap((step) =>
+      branchesOf(step)
+        .filter((b) => b.target && inFlow.has(b.target))
+        .map((b) => {
+          const id = `b-${step.id}-${b.handle}`
+          const data: BranchEdgeData = { stepId: step.id, handle: b.handle }
+          return {
+            id,
+            source: step.id,
+            sourceHandle: b.handle,
+            target: b.target!,
+            targetHandle: 't',
+            type: 'default',
+            deletable: true,
+            selected: id === selectedEdge,
+            animated: true,
+            label: b.label,
+            labelStyle: { fill: '#e5e7eb', fontSize: 11 },
+            labelBgStyle: { fill: '#1f2937' },
+            markerEnd: { type: MarkerType.ArrowClosed, color: BRANCH_COLORS[b.kind] },
+            style: { strokeWidth: 2, stroke: BRANCH_COLORS[b.kind] },
+            data
+          }
+        })
+    )
+    return [...sequence, ...paths]
   }, [steps, selectedEdge])
 
   // Re-fit the view when steps are added or removed.
@@ -124,10 +188,18 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
     return () => clearTimeout(timer)
   }, [steps.length])
 
-  /** Connecting A → B makes B come right after A (Start → B makes it the first step). */
+  /**
+   * Connecting A → B makes B come right after A (Start → B makes it the first step).
+   * From a path handle it sets where that path leads; from the bottom handle, a "go to".
+   */
   const onConnect = useCallback(
-    ({ source, target }: Connection) => {
+    ({ source, target, sourceHandle }: Connection) => {
       if (!source || !target || source === target) return
+      if (isBranchHandle(sourceHandle)) return setBranchTarget(source, sourceHandle, target)
+      if (sourceHandle === 'jump') {
+        if (target !== START_ID) setJump(source, target)
+        return
+      }
       const lesson = useLessonStore.getState()
       if (source === START_ID) lesson.placeFirst(target, flowId)
       else lesson.placeAfter(target, source)
@@ -181,6 +253,11 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
         if (change.type !== 'remove') continue
         setSelectedEdge(null)
         const edge = edges.find((e) => e.id === change.id)
+        const branch = edge?.data as BranchEdgeData | undefined
+        if (branch?.handle) {
+          setBranchTarget(branch.stepId, branch.handle, undefined)
+          continue
+        }
         const last = steps[steps.length - 1]
         if (edge && last && edge.target !== last.id) lesson.placeAfter(edge.target, last.id)
       }
@@ -206,9 +283,10 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
       <div className="pointer-events-none absolute left-4 right-40 top-3 z-10">
         <div className="text-lg font-light text-white">{flow.title}</div>
         <div className="text-[12px] text-ide-muted">
-          Arraste um passo para os lados para mudar a ordem · ligue a saída de um passo à entrada de
-          outro para colocá-lo depois · clique numa ligação e aperte Delete para mandar o passo para
-          o fim · duplo clique para editar
+          Arraste um passo para os lados para mudar a ordem · ligue a saída (direita) de um passo à
+          entrada de outro para colocá-lo depois · puxe a bolinha de baixo para criar um “ir para” e
+          as de cada opção de menu ou condição para escolher o caminho · Delete apaga a ligação
+          selecionada · clique direito para mais opções
         </div>
       </div>
       <button
@@ -247,7 +325,16 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
         }}
         onEdgeContextMenu={(e, edge) => {
           e.preventDefault()
-          setMenu({ x: e.clientX, y: e.clientY, edgeTarget: edge.target })
+          const branch = edge.data as BranchEdgeData | undefined
+          setMenu(
+            branch?.handle
+              ? {
+                  x: e.clientX,
+                  y: e.clientY,
+                  branch: { stepId: branch.stepId, handle: branch.handle }
+                }
+              : { x: e.clientX, y: e.clientY, edgeTarget: edge.target }
+          )
         }}
         onNodeContextMenu={(e, node) => {
           e.preventDefault()

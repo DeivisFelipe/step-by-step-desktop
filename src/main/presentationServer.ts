@@ -340,10 +340,19 @@ export class PresentationServer {
       res.writeHead(404).end('Slide não encontrado')
       return
     }
+    // proximoPasso(n) picks option n of the step's menu (or goes to step n / a title);
+    // rodarComando('cmd') runs a command in the terminal. The page hosting the slide
+    // (app or presenter view) carries them out.
+    const api =
+      '<script>' +
+      'window.proximoPasso=function(v){parent.postMessage({ssc:"proximoPasso",value:v},"*")};' +
+      'window.rodarComando=function(c,t){parent.postMessage({ssc:"rodarComando",value:String(c),terminal:t},"*")};' +
+      '</script>'
     const head =
       '<meta charset="utf-8"><base href="/arquivos/"><style>' +
       'html,body{margin:0;width:100%;height:100%;overflow:hidden}' +
-      "body{font-family:Inter,'Segoe UI',system-ui,sans-serif;color:#fff}</style>"
+      "body{font-family:Inter,'Segoe UI',system-ui,sans-serif;color:#fff}</style>" +
+      api
     let page: string
     if (!/<html[\s>]/i.test(html)) {
       page = `<!doctype html><html><head>${head}</head><body>${html}</body></html>`

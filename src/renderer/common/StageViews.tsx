@@ -57,21 +57,37 @@ function useFitFont(max: number, content: unknown): React.RefObject<HTMLDivEleme
  * An HTML slide: a page of the presentation server drawn at 1920×1080 and scaled to fit,
  * so it looks the same in the app, on stage and on the students' page.
  */
-export const HtmlSlide = ({ src }: { src: string }): React.JSX.Element => {
+export const HtmlSlide = ({
+  src,
+  fill = false
+}: {
+  src: string
+  /** Fill the whole area: 1920 wide, as tall as the area's shape needs (no bars). */
+  fill?: boolean
+}): React.JSX.Element => {
   const ref = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0)
+  const [height, setHeight] = useState<number>(HTML_SLIDE_SIZE.height)
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    const measure = (): void =>
+    const measure = (): void => {
+      if (fill && el.clientWidth > 0) {
+        const s = el.clientWidth / HTML_SLIDE_SIZE.width
+        setScale(s)
+        setHeight(el.clientHeight / s)
+        return
+      }
+      setHeight(HTML_SLIDE_SIZE.height)
       setScale(
         Math.min(el.clientWidth / HTML_SLIDE_SIZE.width, el.clientHeight / HTML_SLIDE_SIZE.height)
       )
+    }
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [fill])
   return (
     <div ref={ref} className="relative h-full w-full overflow-hidden">
       {scale > 0 && (
@@ -83,7 +99,7 @@ export const HtmlSlide = ({ src }: { src: string }): React.JSX.Element => {
           className="absolute left-1/2 top-1/2 border-0 bg-transparent"
           style={{
             width: HTML_SLIDE_SIZE.width,
-            height: HTML_SLIDE_SIZE.height,
+            height,
             transform: `translate(-50%, -50%) scale(${scale})`
           }}
         />
@@ -99,13 +115,15 @@ export const HtmlSlide = ({ src }: { src: string }): React.JSX.Element => {
 export const SlideView = ({
   slide,
   fontSize = 28,
-  server = ''
+  server = '',
+  fill = false
 }: {
   slide: Omit<StageSlide, 'key'>
   fontSize?: number
   server?: string
+  fill?: boolean
 }): React.JSX.Element => {
-  if (slide.htmlPath) return <HtmlSlide src={server + slide.htmlPath} />
+  if (slide.htmlPath) return <HtmlSlide src={server + slide.htmlPath} fill={fill} />
   return <MarkdownSlide slide={slide} fontSize={fontSize} />
 }
 

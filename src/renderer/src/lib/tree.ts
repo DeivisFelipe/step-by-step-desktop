@@ -24,6 +24,23 @@ export function flattenSteps(nodes: LessonNode[]): LessonNode[] {
   return result
 }
 
+/**
+ * The step that "Next" runs: the path chosen by the last step (menu, condition,
+ * go to) or, without one, the step after it in the list.
+ */
+export function nextStepOf(
+  tree: LessonNode[],
+  history: { stepId: string; next?: string }[]
+): LessonNode | null {
+  const steps = flattenSteps(tree)
+  if (history.length === 0) return steps[0] ?? null
+  const last = history[history.length - 1]
+  const chosen = last.next ? steps.find((s) => s.id === last.next) : undefined
+  if (chosen) return chosen
+  const index = steps.findIndex((s) => s.id === last.stepId)
+  return index === -1 ? null : (steps[index + 1] ?? null)
+}
+
 /** Ids of a node and all of its descendants. */
 export function collectIds(node: LessonNode): string[] {
   return [node.id, ...(node.children ?? []).flatMap(collectIds)]
@@ -140,6 +157,34 @@ export function defaultAction(kind: ActionKind, id: string = newId()): StepActio
       return { id, kind, url: 'index.html' }
     case 'OBS_SCENE':
       return { id, kind, scene: '' }
+    case 'CHOICE':
+      return {
+        id,
+        kind,
+        title: 'Qual caminho seguir?',
+        options: [
+          { id: newId(), label: 'Opção A' },
+          { id: newId(), label: 'Opção B' }
+        ],
+        showOnStage: true
+      }
+    case 'CONDITION':
+      return {
+        id,
+        kind,
+        rules: [{ id: newId(), test: { type: 'output-contains', text: '' } }]
+      }
+    case 'GOTO':
+      return { id, kind }
+    case 'LAB':
+      return {
+        id,
+        kind,
+        targetMode: 'SPECIFIC_PATH',
+        targetPath: '',
+        command: '',
+        layout: 'horizontal'
+      }
     case 'FILE':
     default:
       return {
@@ -161,7 +206,11 @@ export const ACTION_LABELS: Record<ActionKind, string> = {
   HIGHLIGHT: 'Destacar linhas',
   CHALLENGE: 'Desafio',
   PREVIEW: 'Preview',
-  OBS_SCENE: 'Cena do OBS'
+  OBS_SCENE: 'Cena do OBS',
+  CHOICE: 'Menu de escolha',
+  CONDITION: 'Se / senão',
+  GOTO: 'Ir para passo',
+  LAB: 'Laboratório (código + terminal)'
 }
 
 /** Kind of the main action of a step (used for icons). */

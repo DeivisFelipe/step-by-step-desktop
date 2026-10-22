@@ -84,7 +84,8 @@ const TerminalInstance = ({
         const proposed = fit.proposeDimensions()
         if (!proposed) return
         // The stage mirrors this grid: a column limit keeps its letters readable.
-        const max = useSettingsStore.getState().settings.terminalColumns
+        const own = useTerminalStore.getState().sessions.find((s) => s.key === session.key)?.columns
+        const max = own ?? useSettingsStore.getState().settings.terminalColumns
         const cols = max > 0 ? Math.min(proposed.cols, max) : proposed.cols
         if (cols !== term.cols || proposed.rows !== term.rows) term.resize(cols, proposed.rows)
         if (id !== null) window.api.resizeTerminal(id, term.cols, term.rows)
@@ -149,11 +150,17 @@ const TerminalInstance = ({
     const offSettings = useSettingsStore.subscribe((state, previous) => {
       if (state.settings.terminalColumns !== previous.settings.terminalColumns) syncSize()
     })
+    const columnsOf = (state: { sessions: TerminalSession[] }): number | undefined =>
+      state.sessions.find((s) => s.key === session.key)?.columns
+    const offColumns = useTerminalStore.subscribe((state, previous) => {
+      if (columnsOf(state) !== columnsOf(previous)) syncSize()
+    })
 
     return () => {
       disposed = true
       observer.disconnect()
       offSettings()
+      offColumns()
       offData()
       offExit()
       input.dispose()

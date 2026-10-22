@@ -130,6 +130,69 @@ export interface ObsSceneAction {
   scene: string
 }
 
+/** One way out of a menu. `target` empty = the next step of the list. */
+export interface ChoiceOption {
+  id: string
+  label: string
+  target?: string
+}
+
+/**
+ * A menu: the presenter picks an option (button, keys 1–9, presenter view or
+ * proximoPasso(n) in an HTML slide) and the lesson continues from its step.
+ */
+export interface ChoiceAction {
+  id: string
+  kind: 'CHOICE'
+  /** Question shown above the options. */
+  title: string
+  options: ChoiceOption[]
+  /** Shows the options to the class (stage and OBS) too. */
+  showOnStage: boolean
+  /** Saves the chosen label in this variable (for "Se / senão"). */
+  variable?: string
+}
+
+export type ConditionTest =
+  | { type: 'output-contains'; text: string; terminal?: string }
+  | { type: 'file-exists'; path: string }
+  | { type: 'file-contains'; path: string; text: string }
+  | { type: 'variable-equals'; name: string; value: string }
+
+export interface ConditionRule {
+  id: string
+  test: ConditionTest
+  target?: string
+}
+
+/** If / else: the first rule that holds decides the next step; otherwise `otherwise`. */
+export interface ConditionAction {
+  id: string
+  kind: 'CONDITION'
+  rules: ConditionRule[]
+  /** Empty = the next step of the list. */
+  otherwise?: string
+}
+
+/** Jumps to another step after this one (ends a path of a menu, loops back…). */
+export interface GotoAction {
+  id: string
+  kind: 'GOTO'
+  target?: string
+}
+
+/**
+ * Live lab: a file and a terminal side by side on stage. The presenter edits the
+ * code live, runs `command` with ▶ (Ctrl+Enter) as often as wanted and F8 continues.
+ */
+export interface LabAction extends FileTarget {
+  id: string
+  kind: 'LAB'
+  command: string
+  terminal?: string
+  layout: 'horizontal' | 'vertical' | 'tabs'
+}
+
 export type StepAction =
   | FileAction
   | TerminalAction
@@ -139,6 +202,13 @@ export type StepAction =
   | ChallengeAction
   | PreviewAction
   | ObsSceneAction
+  | ChoiceAction
+  | ConditionAction
+  | GotoAction
+  | LabAction
+
+/** Actions that decide which step comes next. */
+export const BRANCH_KINDS: ActionKind[] = ['CHOICE', 'CONDITION', 'GOTO']
 
 export type ActionKind = StepAction['kind']
 
