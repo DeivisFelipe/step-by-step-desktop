@@ -45,8 +45,13 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
   const history = usePlayerStore((s) => s.history)
   const runningStepId = usePlayerStore((s) => s.runningStepId)
   const [menu, setMenu] = useState<FlowMenuState | null>(null)
-  /** Node being dragged and where it is, until it is dropped. */
+  /** Card being dragged and where it is, until it is dropped. */
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null)
+  /**
+   * Card sizes measured by React Flow. Nodes given without them are hidden and measured again,
+   * which made the cards flicker while dragging.
+   */
+  const [sizes, setSizes] = useState<Record<string, { width: number; height: number }>>({})
   /** Edges are derived from the steps, so their selection lives here. */
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
   const instanceRef = useRef<ReactFlowInstance<FlowNode, Edge> | null>(null)
@@ -63,6 +68,7 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
         id: START_ID,
         type: 'start',
         position: { x: START_X, y: ROW_Y + 18 },
+        measured: sizes[START_ID],
         data: {},
         draggable: false,
         selectable: false,
@@ -76,6 +82,7 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
             drag?.id === step.id
               ? { x: drag.x, y: drag.y }
               : { x: START_X + 130 + index * SPACING_X, y: ROW_Y },
+          measured: sizes[step.id],
           draggable: true,
           deletable: false,
           selected: step.id === selectedNodeId,
@@ -92,7 +99,7 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
         })
       )
     ]
-  }, [steps, tree, history, selectedNodeId, rootPath, runningStepId, drag])
+  }, [steps, tree, history, selectedNodeId, rootPath, runningStepId, drag, sizes])
 
   const edges = useMemo<Edge[]>(() => {
     const ids = [START_ID, ...steps.map((s) => s.id)]
@@ -128,27 +135,35 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
     [flowId]
   )
 
-  /** Dragging a step left or right changes its position in the flow. */
-  const onNodesChange = useCallback(
-    (changes: NodeChange<FlowNode>[]) => {
-      for (const change of changes) {
-        if (change.type !== 'position' || change.id === START_ID) continue
-        if (change.dragging && change.position) {
-          setDrag({ id: change.id, x: change.position.x, y: change.position.y })
-        } else if (change.dragging === false) {
-          setDrag((current) => {
-            if (current?.id === change.id) {
-              const others = steps.filter((s) => s.id !== change.id)
-              const slot = Math.round((current.x - START_X - 130) / SPACING_X)
-              const index = Math.max(0, Math.min(others.length, slot))
-              const lesson = useLessonStore.getState()
-              if (index === 0) lesson.placeFirst(change.id, flowId)
-              else lesson.placeAfter(change.id, others[index - 1].id)
-            }
-            return null
-          })
-        }
+  /** Keeps the measured sizes and the dragged card's position; selection lives in the lesson store. */
+  const onNodesChange = useCallback((changes: NodeChange<FlowNode>[]) => {
+    for (const change of changes) {
+      if (change.type === 'dimensions' && change.dimensions) {
+        const { width, height } = change.dimensions
+        setSizes((current) =>
+          current[change.id]?.width === width && current[change.id]?.height === height
+            ? current
+            : { ...current, [change.id]: { width, height } }
+        )
+      } else if (change.type === 'position' && change.dragging && change.position) {
+        setDrag({ id: change.id, x: change.position.x, y: change.position.y })
       }
+    }
+  }, [])
+
+  /** Dropping a step to the left or right of others changes its position in the flow. */
+  const onNodeDragStop = useCallback(
+    (_: unknown, node: FlowNode) => {
+      if (node.id === START_ID) return
+      const others = steps.filter((s) => s.id !== node.id)
+      const slot = Math.round((node.position.x - START_X - 130) / SPACING_X)
+      const index = Math.max(0, Math.min(others.length, slot))
+      const lesson = useLessonStore.getState()
+      if (steps[index]?.id !== node.id) {
+        if (index === 0) lesson.placeFirst(node.id, flowId)
+        else lesson.placeAfter(node.id, others[index - 1].id)
+      }
+      setDrag(null)
     },
     [steps, flowId]
   )
@@ -213,6 +228,7 @@ const FlowEditor = ({ flowId }: { flowId: string }): React.JSX.Element => {
         }}
         onConnect={onConnect}
         onNodesChange={onNodesChange}
+        onNodeDragStop={onNodeDragStop}
         onEdgesChange={onEdgesChange}
         onNodeClick={(_, node) =>
           node.id !== START_ID && useLessonStore.getState().selectNode(node.id)

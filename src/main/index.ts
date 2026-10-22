@@ -99,7 +99,8 @@ function createWindow(): void {
 
 // A second copy of the app would fight over the same settings and storage:
 // focus the window that is already open instead.
-const isFirstInstance = app.requestSingleInstanceLock()
+// Development builds run alongside the installed app.
+const isFirstInstance = !app.isPackaged || app.requestSingleInstanceLock()
 if (!isFirstInstance) {
   app.quit()
 } else {
