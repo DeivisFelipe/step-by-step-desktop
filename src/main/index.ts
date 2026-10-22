@@ -11,6 +11,7 @@ import { PresentationServer } from './presentationServer'
 import { ObsClient } from './obs'
 import { setupWorkspaceTools } from './workspaceTools'
 import { setupUpdater } from './updater'
+import { setupExamples } from './examples'
 import type { PresenterPayload, StagePayload } from '../shared/presentation'
 
 // node-pty is a native module; if it fails to load we fall back to a plain child process.
@@ -138,6 +139,7 @@ app.whenReady().then(() => {
   setupTerminalHandlers()
   setupPresentationHandlers()
   setupWorkspaceTools()
+  setupExamples()
   setupUpdater((status) => sendToWindows('updater:status', status))
 
   createWindow()

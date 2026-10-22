@@ -1,5 +1,6 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
+  ExampleInfo,
   ExecRequest,
   ExecResult,
   GitCommit,
@@ -71,6 +72,10 @@ export interface CustomAPI {
   ) => Promise<AppSettings>
   onSettingsChanged: (callback: (settings: AppSettings) => void) => () => void
 
+  /** Example lessons shipped with the app. */
+  listExamples: () => Promise<ExampleInfo[]>
+  /** Copies an example to Documents (`fresh` = a new copy) and returns its folder. */
+  installExample: (id: string, fresh: boolean) => Promise<string>
   getServerInfo: () => Promise<ServerInfo>
   /** Serves an HTML slide from the presentation server; returns its path. */
   registerSlide: (html: string) => Promise<string>

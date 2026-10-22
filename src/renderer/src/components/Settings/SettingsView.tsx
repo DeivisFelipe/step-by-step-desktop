@@ -513,7 +513,9 @@ const VersionRow = (): React.JSX.Element => {
             ? `versão ${updater.version} pronta para instalar`
             : updater.state === 'error'
               ? `${UPDATE_TEXT.error}: ${updater.error ?? ''}`
-              : UPDATE_TEXT[updater.state]}
+              : updater.state === 'disabled' && updater.error
+                ? updater.error
+                : UPDATE_TEXT[updater.state]}
       </span>
       {updater.state === 'ready' ? (
         <button className="text-[12px] text-green-400 hover:underline" onClick={restartToUpdate}>

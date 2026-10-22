@@ -1,0 +1,4 @@
+Aula "Introdução ao PHP" para o Step-by-Step Code.
+Use F8 para avançar e Shift+F8 para voltar.
+Os arquivos .php são criados durante a aula.
+Precisa do PHP instalado (php -v no terminal).

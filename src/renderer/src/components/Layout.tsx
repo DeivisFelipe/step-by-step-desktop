@@ -36,14 +36,9 @@ function useGlobalShortcuts(): void {
       const waiting = usePauseStore.getState().kind
       let handled = true
 
-      // A menu waiting for a path: keys 1–9 pick it (not while typing in a field or the editor).
-      if (
-        waiting === 'choice' &&
-        /^[1-9]$/.test(e.key) &&
-        !ctrl &&
-        !target?.matches?.('input, select, textarea') &&
-        !target?.closest('.monaco-editor')
-      ) {
+      // A menu waiting for a path: keys 1–9 pick it, also when the code editor has the focus
+      // (a step that typed code leaves it there); only form fields keep their digits.
+      if (waiting === 'choice' && /^[1-9]$/.test(e.key) && !ctrl && !inForm) {
         player.choose(Number(e.key) - 1)
       } else if (waiting === 'lab' && ctrl && e.key === 'Enter') runLabCommand()
       else if (e.key === 'F8' && !e.shiftKey) player.runNext()

@@ -1,5 +1,12 @@
 **Step-by-Step Code** — prepare aulas de programação e apresente o código passo a passo: digitação animada, comandos no terminal, slides, destaques, desafios e páginas para o OBS. Veja todas as funcionalidades no [README](https://github.com/DeivisFelipe/step-by-step-desktop#readme).
 
+### Novidades da 2.1
+
+- **Versão para Linux**: AppImage (qualquer distribuição, atualiza sozinho) e pacote `.deb` (Ubuntu, Debian, Mint).
+- **8 aulas de exemplo** já vêm com o app, na tela inicial: tour do Step-by-Step, HTML e CSS, JavaScript com Node.js, Python do zero, Introdução ao PHP, Git básico, Escolha sua trilha (aula com caminhos) e Galeria de slides em HTML. Ao abrir, uma cópia vai para `Documentos/Step-by-Step Code/Exemplos`.
+- Com um menu esperando, as teclas 1–9 escolhem a opção mesmo com o cursor no editor de código.
+- Abrir outro projeto com um passo esperando (menu, laboratório) cancela esse passo em vez de travar.
+
 ### Novidades da 2.0
 
 **Aulas com caminhos**
@@ -36,9 +43,13 @@
 
 ### Instalação
 
-Baixe **`step-by-step-code-*-setup.exe`** abaixo e execute. Quem já tem o app instalado recebe esta versão automaticamente (aparece **Reiniciar para atualizar** na barra de status).
+- **Windows**: baixe **`step-by-step-code-*-setup.exe`** e execute.
+- **Linux (qualquer distribuição)**: baixe o **`.AppImage`**, rode `chmod +x step-by-step-code-*.AppImage` e abra. No Ubuntu 22.04+, se não abrir: `sudo apt install libfuse2`.
+- **Ubuntu, Debian, Mint**: baixe o **`.deb`** e instale com `sudo apt install ./step-by-step-code_*_amd64.deb`.
 
-Os arquivos `latest.yml` e `.blockmap` são usados pelas atualizações automáticas; não é preciso baixá-los.
+Quem já tem o app instalado (Windows ou AppImage) recebe esta versão automaticamente: aparece **Reiniciar para atualizar** na barra de status.
+
+Os arquivos `latest*.yml` e `.blockmap` são usados pelas atualizações automáticas; não é preciso baixá-los.
 
 ### Code signing policy
 

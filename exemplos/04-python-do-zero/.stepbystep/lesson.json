@@ -1,0 +1,273 @@
+{
+  "version": 2,
+  "title": "Python do zero",
+  "tree": [
+    {
+      "id": "04-python-do-zero-1",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Começando",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "04-python-do-zero-2",
+          "parentId": "04-python-do-zero-1",
+          "type": "STEP",
+          "title": "Por que Python",
+          "data": {
+            "actions": [
+              {
+                "id": "04-python-do-zero-3",
+                "kind": "SLIDE",
+                "markdown": "# Python do zero\n\n- Código limpo, quase como inglês\n- **Indentação** faz parte da linguagem\n- `python arquivo.py` executa um arquivo",
+                "transition": "fade"
+              }
+            ],
+            "caption": "Python é simples de ler e muito usado em dados, automação e web.",
+            "presenterNotes": "no Linux o comando costuma ser python3. Troque no campo \"python\" das variáveis de cada comando (editor do passo) se precisar."
+          }
+        },
+        {
+          "id": "04-python-do-zero-4",
+          "parentId": "04-python-do-zero-1",
+          "type": "STEP",
+          "title": "Conferir a instalação",
+          "data": {
+            "actions": [
+              {
+                "id": "04-python-do-zero-5",
+                "kind": "TERMINAL",
+                "command": "[[python:python]] --version",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "04-python-do-zero-6",
+          "parentId": "04-python-do-zero-1",
+          "type": "STEP",
+          "title": "Olá, mundo",
+          "data": {
+            "actions": [
+              {
+                "id": "04-python-do-zero-7",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "print(\"Olá, mundo!\")\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "python"
+                },
+                "targetPath": "ola.py"
+              },
+              {
+                "id": "04-python-do-zero-8",
+                "kind": "TERMINAL",
+                "command": "[[python:python]] ola.py",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "04-python-do-zero-9",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "O básico",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "04-python-do-zero-10",
+          "parentId": "04-python-do-zero-9",
+          "type": "STEP",
+          "title": "Variáveis",
+          "data": {
+            "actions": [
+              {
+                "id": "04-python-do-zero-11",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "nome = \"Ana\"\nidade = 20\naltura = 1.65\n\nprint(f\"{nome} tem {idade} anos e {altura} m\")\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "python"
+                },
+                "targetPath": "basico.py"
+              },
+              {
+                "id": "04-python-do-zero-12",
+                "kind": "TERMINAL",
+                "command": "[[python:python]] basico.py",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "Em Python não se declara o tipo: o valor decide."
+          }
+        },
+        {
+          "id": "04-python-do-zero-13",
+          "parentId": "04-python-do-zero-9",
+          "type": "STEP",
+          "title": "Decisões com if",
+          "data": {
+            "actions": [
+              {
+                "id": "04-python-do-zero-14",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "APPEND",
+                "content": "\nif idade >= 18:\n    print(\"Maior de idade\")\nelse:\n    print(\"Menor de idade\")\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "python"
+                },
+                "targetPath": "basico.py"
+              },
+              {
+                "id": "04-python-do-zero-15",
+                "kind": "TERMINAL",
+                "command": "[[python:python]] basico.py",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "04-python-do-zero-16",
+          "parentId": "04-python-do-zero-9",
+          "type": "STEP",
+          "title": "A indentação importa",
+          "data": {
+            "actions": [
+              {
+                "id": "04-python-do-zero-17",
+                "kind": "HIGHLIGHT",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "basico.py",
+                "startLine": 7,
+                "endLine": 10,
+                "note": "Os quatro espaços dizem o que está dentro do if e do else."
+              }
+            ]
+          }
+        },
+        {
+          "id": "04-python-do-zero-18",
+          "parentId": "04-python-do-zero-9",
+          "type": "STEP",
+          "title": "Repetição com for",
+          "data": {
+            "actions": [
+              {
+                "id": "04-python-do-zero-19",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "frutas = [\"maçã\", \"banana\", \"uva\"]\n\nfor fruta in frutas:\n    print(\"Eu gosto de\", fruta)\n\nprint(\"Total:\", len(frutas))\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "python"
+                },
+                "targetPath": "lista.py"
+              },
+              {
+                "id": "04-python-do-zero-20",
+                "kind": "TERMINAL",
+                "command": "[[python:python]] lista.py",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "04-python-do-zero-21",
+          "parentId": "04-python-do-zero-9",
+          "type": "STEP",
+          "title": "Funções",
+          "data": {
+            "actions": [
+              {
+                "id": "04-python-do-zero-22",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "APPEND",
+                "content": "\ndef dobro(numero):\n    return numero * 2\n\nfor n in range(1, 4):\n    print(n, \"->\", dobro(n))\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "python"
+                },
+                "targetPath": "lista.py"
+              },
+              {
+                "id": "04-python-do-zero-23",
+                "kind": "TERMINAL",
+                "command": "[[python:python]] lista.py",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "04-python-do-zero-24",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Prática",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "04-python-do-zero-25",
+          "parentId": "04-python-do-zero-24",
+          "type": "STEP",
+          "title": "Laboratório",
+          "data": {
+            "actions": [
+              {
+                "id": "04-python-do-zero-26",
+                "kind": "LAB",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "lista.py",
+                "layout": "horizontal",
+                "command": "[[python:python]] lista.py"
+              }
+            ],
+            "caption": "Mude as frutas, rode com ▶ (Ctrl+Enter) e continue com **F8**."
+          }
+        },
+        {
+          "id": "04-python-do-zero-27",
+          "parentId": "04-python-do-zero-24",
+          "type": "STEP",
+          "title": "Desafio",
+          "data": {
+            "actions": [
+              {
+                "id": "04-python-do-zero-28",
+                "kind": "CHALLENGE",
+                "markdown": "## Sua vez\n\nEscreva `eh_par(numero)` que devolve `True` para números pares\ne mostre os pares de 1 a 10.",
+                "durationSec": 300
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

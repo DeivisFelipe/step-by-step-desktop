@@ -9,7 +9,14 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
-  - '!{dist,dist-*,docs,.github}/**'
+  - '!{dist,dist-*,docs,.github,scripts,exemplos}/**'
+# Example lessons, copied to the user's Documents when opened.
+extraResources:
+  - from: exemplos
+    to: exemplos
+    filter:
+      - '**/*'
+      - '**/.stepbystep/**'
 asarUnpack:
   - resources/**
   - node_modules/node-pty/**

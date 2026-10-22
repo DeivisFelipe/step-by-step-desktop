@@ -1,0 +1,266 @@
+{
+  "version": 2,
+  "title": "Escolha sua trilha (aula com caminhos)",
+  "tree": [
+    {
+      "id": "07-escolha-sua-trilha-1",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Começo",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "07-escolha-sua-trilha-2",
+          "parentId": "07-escolha-sua-trilha-1",
+          "type": "STEP",
+          "title": "Escolha a linguagem",
+          "data": {
+            "actions": [
+              {
+                "id": "07-escolha-sua-trilha-3",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    display: flex;\n    flex-direction: column;\n    align-items: center;\n    justify-content: center;\n    gap: 60px;\n    background: linear-gradient(135deg, #111827, #312e81);\n  }\n  h1 {\n    margin: 0;\n    font-size: 96px;\n  }\n  .opcoes {\n    display: flex;\n    gap: 60px;\n  }\n  button {\n    width: 520px;\n    padding: 50px;\n    border: 0;\n    border-radius: 36px;\n    font-size: 64px;\n    font-weight: 700;\n    color: #111827;\n    cursor: pointer;\n    transition: transform 200ms;\n  }\n  button:hover {\n    transform: scale(1.06);\n  }\n  .js {\n    background: #facc15;\n  }\n  .py {\n    background: #60a5fa;\n  }\n</style>\n<h1>Qual trilha vamos seguir?</h1>\n<div class=\"opcoes\">\n  <button class=\"js\" onclick=\"proximoPasso(0)\">JavaScript</button>\n  <button class=\"py\" onclick=\"proximoPasso(1)\">Python</button>\n</div>",
+                "transition": "zoom"
+              },
+              {
+                "id": "07-escolha-sua-trilha-4",
+                "kind": "CHOICE",
+                "title": "Qual trilha?",
+                "variable": "trilha",
+                "showOnStage": false,
+                "options": [
+                  {
+                    "id": "07-escolha-sua-trilha-5",
+                    "label": "JavaScript",
+                    "target": "07-escolha-sua-trilha-8"
+                  },
+                  {
+                    "id": "07-escolha-sua-trilha-6",
+                    "label": "Python",
+                    "target": "07-escolha-sua-trilha-15"
+                  }
+                ]
+              }
+            ],
+            "caption": "A turma escolhe: **JavaScript** ou **Python**?",
+            "presenterNotes": "clique num botão do slide, aperte 1 ou 2, ou use a visão do apresentador no celular. Cada trilha tem seus passos e as duas terminam juntas. Abra a aba de diagrama do fluxo para ver os caminhos."
+          }
+        }
+      ]
+    },
+    {
+      "id": "07-escolha-sua-trilha-7",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Trilha JavaScript",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "07-escolha-sua-trilha-8",
+          "parentId": "07-escolha-sua-trilha-7",
+          "type": "STEP",
+          "title": "JS: olá",
+          "data": {
+            "actions": [
+              {
+                "id": "07-escolha-sua-trilha-9",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "const nomes = ['Ana', 'Bruno', 'Carla']\n\nfor (const nome of nomes) {\n  console.log(`Olá, ${nome}!`)\n}\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "js"
+                },
+                "targetPath": "trilha.js"
+              },
+              {
+                "id": "07-escolha-sua-trilha-10",
+                "kind": "TERMINAL",
+                "command": "node trilha.js",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "presenterNotes": "precisa do Node.js."
+          }
+        },
+        {
+          "id": "07-escolha-sua-trilha-11",
+          "parentId": "07-escolha-sua-trilha-7",
+          "type": "STEP",
+          "title": "JS: laboratório",
+          "data": {
+            "actions": [
+              {
+                "id": "07-escolha-sua-trilha-12",
+                "kind": "LAB",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "trilha.js",
+                "layout": "horizontal",
+                "command": "node trilha.js"
+              },
+              {
+                "id": "07-escolha-sua-trilha-13",
+                "kind": "GOTO",
+                "target": "07-escolha-sua-trilha-21"
+              }
+            ],
+            "caption": "Peça nomes para a turma, coloque na lista e rode com ▶."
+          }
+        }
+      ]
+    },
+    {
+      "id": "07-escolha-sua-trilha-14",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Trilha Python",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "07-escolha-sua-trilha-15",
+          "parentId": "07-escolha-sua-trilha-14",
+          "type": "STEP",
+          "title": "Python: olá",
+          "data": {
+            "actions": [
+              {
+                "id": "07-escolha-sua-trilha-16",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "nomes = [\"Ana\", \"Bruno\", \"Carla\"]\n\nfor nome in nomes:\n    print(f\"Olá, {nome}!\")\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30,
+                  "language": "python"
+                },
+                "targetPath": "trilha.py"
+              },
+              {
+                "id": "07-escolha-sua-trilha-17",
+                "kind": "TERMINAL",
+                "command": "[[python:python]] trilha.py",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "presenterNotes": "no Linux troque a variável python por python3."
+          }
+        },
+        {
+          "id": "07-escolha-sua-trilha-18",
+          "parentId": "07-escolha-sua-trilha-14",
+          "type": "STEP",
+          "title": "Python: laboratório",
+          "data": {
+            "actions": [
+              {
+                "id": "07-escolha-sua-trilha-19",
+                "kind": "LAB",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "trilha.py",
+                "layout": "horizontal",
+                "command": "[[python:python]] trilha.py"
+              }
+            ],
+            "caption": "Peça nomes para a turma, coloque na lista e rode com ▶."
+          }
+        }
+      ]
+    },
+    {
+      "id": "07-escolha-sua-trilha-20",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Final",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "07-escolha-sua-trilha-21",
+          "parentId": "07-escolha-sua-trilha-20",
+          "type": "STEP",
+          "title": "Comparar as trilhas",
+          "data": {
+            "actions": [
+              {
+                "id": "07-escolha-sua-trilha-22",
+                "kind": "CONDITION",
+                "rules": [
+                  {
+                    "id": "07-escolha-sua-trilha-23",
+                    "test": {
+                      "type": "variable-equals",
+                      "name": "trilha",
+                      "value": "JavaScript"
+                    },
+                    "target": "07-escolha-sua-trilha-24"
+                  }
+                ],
+                "otherwise": "07-escolha-sua-trilha-27"
+              }
+            ],
+            "caption": "O **se / senão** lembra qual trilha foi escolhida e mostra o slide certo."
+          }
+        },
+        {
+          "id": "07-escolha-sua-trilha-24",
+          "parentId": "07-escolha-sua-trilha-20",
+          "type": "STEP",
+          "title": "Final JavaScript",
+          "data": {
+            "actions": [
+              {
+                "id": "07-escolha-sua-trilha-25",
+                "kind": "SLIDE",
+                "markdown": "# Trilha JavaScript ✔\n\n- `const` e listas com `[]`\n- `for...of` para repetir\n- Textos com crase: `` `Olá, ${nome}!` ``",
+                "transition": "slide-left"
+              },
+              {
+                "id": "07-escolha-sua-trilha-26",
+                "kind": "GOTO",
+                "target": "07-escolha-sua-trilha-29"
+              }
+            ]
+          }
+        },
+        {
+          "id": "07-escolha-sua-trilha-27",
+          "parentId": "07-escolha-sua-trilha-20",
+          "type": "STEP",
+          "title": "Final Python",
+          "data": {
+            "actions": [
+              {
+                "id": "07-escolha-sua-trilha-28",
+                "kind": "SLIDE",
+                "markdown": "# Trilha Python ✔\n\n- Listas com `[]`\n- `for nome in nomes:` e indentação\n- Textos com f-string: `f\"Olá, {nome}!\"`",
+                "transition": "slide-left"
+              }
+            ]
+          }
+        },
+        {
+          "id": "07-escolha-sua-trilha-29",
+          "parentId": "07-escolha-sua-trilha-20",
+          "type": "STEP",
+          "title": "Encerramento",
+          "data": {
+            "actions": [
+              {
+                "id": "07-escolha-sua-trilha-30",
+                "kind": "SLIDE",
+                "markdown": "# Uma aula, vários caminhos\n\n- **Menu de escolha**: a turma decide\n- **Ir para**: as trilhas se encontram\n- **Se / senão**: a aula lembra o que foi escolhido",
+                "transition": "blur"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

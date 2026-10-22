@@ -6,16 +6,33 @@ Aplicativo desktop (Electron + React + TypeScript) para **preparar aulas de prog
 
 ## 💾 Instalação
 
-Baixe o `step-by-step-code-x.y.z-setup.exe` da [página de releases](https://github.com/DeivisFelipe/step-by-step-desktop/releases/latest) e execute. O app é instalado para o seu usuário (sem pedir administrador) e cria um atalho na área de trabalho.
+Os arquivos ficam na [página de releases](https://github.com/DeivisFelipe/step-by-step-desktop/releases/latest).
+
+**Windows**: baixe o `step-by-step-code-x.y.z-setup.exe` e execute. O app é instalado para o seu usuário (sem pedir administrador) e cria um atalho na área de trabalho.
 
 > Como o instalador não é assinado digitalmente, o Windows pode mostrar “O Windows protegeu o computador”. Clique em **Mais informações → Executar assim mesmo**.
+
+**Linux**: escolha um dos dois.
+
+- **AppImage** (qualquer distribuição, atualiza sozinho): baixe `step-by-step-code-x.y.z.AppImage`, dê permissão de execução e abra:
+
+  ```bash
+  chmod +x step-by-step-code-*.AppImage
+  ./step-by-step-code-*.AppImage
+  ```
+
+  No Ubuntu 22.04 ou mais novo, se não abrir, instale o FUSE: `sudo apt install libfuse2`.
+
+- **.deb** (Ubuntu, Debian, Mint): baixe `step-by-step-code_x.y.z_amd64.deb` e instale com `sudo apt install ./step-by-step-code_*_amd64.deb`. Ele aparece no menu de aplicativos; versões novas são instaladas da mesma forma.
+
+**Aulas de exemplo**: o app já vem com várias aulas prontas (tour do app, HTML e CSS, JavaScript, Python, PHP, Git, aula com caminhos e uma galeria de slides em HTML). Elas aparecem na tela inicial; ao abrir, uma cópia é criada em `Documentos/Step-by-Step Code/Exemplos`.
 
 **Atualizações**: o app verifica sozinho se há versão nova no GitHub, baixa em segundo plano e mostra **Reiniciar para atualizar** na barra de status. A versão nova é instalada por cima da antiga, que é removida. Se preferir, a atualização é instalada na próxima vez que o app for fechado. Também dá para verificar manualmente em **Configurações → Versão**.
 
 **Seus arquivos são mantidos** ao atualizar ou desinstalar:
 
 - as aulas ficam dentro de cada projeto, na pasta `.stepbystep/`;
-- as configurações (estilos, OBS, servidor) e a lista de pastas recentes ficam em `%APPDATA%\step-by-step-code`.
+- as configurações (estilos, OBS, servidor) e a lista de pastas recentes ficam em `%APPDATA%\step-by-step-code` (Windows) ou `~/.config/step-by-step-code` (Linux).
 
 ## ✨ Funcionalidades
 

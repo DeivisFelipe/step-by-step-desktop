@@ -5,6 +5,7 @@ import { usePlayerStore } from '../store/usePlayerStore'
 import { useStageStore } from '../store/useStageStore'
 import { useTerminalStore } from '../store/useTerminalStore'
 import { basename } from './paths'
+import { cancelWaiting } from '../engine/ExecutionEngine'
 
 const RECENT_KEY = 'ssc-recent-folders'
 const MAX_RECENT = 6
@@ -58,6 +59,19 @@ export async function confirmUnsavedChanges(): Promise<boolean> {
   return true
 }
 
+/**
+ * A step still running (or waiting on a menu, lab or command) would go on in the next
+ * project: a waiting one is cancelled (its changes undone), an animation is skipped.
+ */
+async function stopRunningStep(): Promise<void> {
+  const player = usePlayerStore.getState()
+  if (!player.runningStepId) return
+  if (!cancelWaiting()) player.skip()
+  for (let i = 0; i < 100 && usePlayerStore.getState().runningStepId; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
 export async function openWorkspace(path: string): Promise<void> {
   if (!(await window.api.exists(path))) {
     forgetFolder(path)
@@ -65,6 +79,7 @@ export async function openWorkspace(path: string): Promise<void> {
     return
   }
   if (!(await confirmUnsavedChanges())) return
+  await stopRunningStep()
 
   try {
     useIDEStore.getState().closeAllTabs()
@@ -85,6 +100,7 @@ export async function openWorkspace(path: string): Promise<void> {
 export async function closeWorkspace(): Promise<void> {
   if (!useFileSystemStore.getState().rootPath) return
   if (!(await confirmUnsavedChanges())) return
+  await stopRunningStep()
   useIDEStore.getState().closeAllTabs()
   useStageStore.getState().reset()
   usePlayerStore.getState().clear()

@@ -1,0 +1,208 @@
+{
+  "version": 2,
+  "title": "Conheça o Step-by-Step Code",
+  "tree": [
+    {
+      "id": "01-conheca-o-step-by-step-1",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Boas-vindas",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "01-conheca-o-step-by-step-2",
+          "parentId": "01-conheca-o-step-by-step-1",
+          "type": "STEP",
+          "title": "O que é o Step-by-Step",
+          "data": {
+            "actions": [
+              {
+                "id": "01-conheca-o-step-by-step-3",
+                "kind": "SLIDE",
+                "markdown": "# Conheça o Step-by-Step Code\n\n- Cada **passo** faz algo na frente da turma\n- **F8** avança · **Shift+F8** volta e desfaz\n- Tudo aparece também no **palco**: OBS, projetor e celular",
+                "transition": "fade"
+              }
+            ],
+            "caption": "Uma aula é uma lista de **passos**. Aperte **F8** para avançar e **Shift+F8** para voltar.",
+            "presenterNotes": "estas notas só aparecem para quem apresenta (aba Passos e visão do apresentador). A legenda acima aparece para a turma."
+          }
+        },
+        {
+          "id": "01-conheca-o-step-by-step-4",
+          "parentId": "01-conheca-o-step-by-step-1",
+          "type": "STEP",
+          "title": "Slides em HTML",
+          "data": {
+            "actions": [
+              {
+                "id": "01-conheca-o-step-by-step-5",
+                "kind": "SLIDE",
+                "format": "html",
+                "markdown": "",
+                "html": "<style>\n  body {\n    display: flex;\n    flex-direction: column;\n    align-items: center;\n    justify-content: center;\n    gap: 36px;\n    background: radial-gradient(circle at 30% 20%, #6366f1, #0f172a 70%);\n  }\n  h1 {\n    margin: 0;\n    font-size: 110px;\n    animation: subir 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;\n  }\n  .bolhas {\n    display: flex;\n    gap: 40px;\n  }\n  .bolhas span {\n    width: 90px;\n    height: 90px;\n    border-radius: 50%;\n    background: #f472b6;\n    animation: pular 1.4s ease-in-out infinite;\n  }\n  .bolhas span:nth-child(2) {\n    background: #38bdf8;\n    animation-delay: 0.2s;\n  }\n  .bolhas span:nth-child(3) {\n    background: #4ade80;\n    animation-delay: 0.4s;\n  }\n  p {\n    margin: 0;\n    font-size: 44px;\n    opacity: 0.85;\n  }\n  @keyframes subir {\n    from {\n      opacity: 0;\n      transform: translateY(80px);\n    }\n  }\n  @keyframes pular {\n    50% {\n      transform: translateY(-50px);\n    }\n  }\n</style>\n<h1>Slides com animação</h1>\n<div class=\"bolhas\"><span></span><span></span><span></span></div>\n<p>Feito com HTML e CSS, dentro do passo</p>",
+                "transition": "zoom"
+              }
+            ],
+            "caption": "Slides também podem ser páginas HTML, com o design e as animações que você quiser.",
+            "presenterNotes": "abra a aba Apresentação e copie o link do palco para ver como a turma enxerga."
+          }
+        },
+        {
+          "id": "01-conheca-o-step-by-step-6",
+          "parentId": "01-conheca-o-step-by-step-1",
+          "type": "STEP",
+          "title": "Digitar código",
+          "data": {
+            "actions": [
+              {
+                "id": "01-conheca-o-step-by-step-7",
+                "kind": "FILE",
+                "targetMode": "SPECIFIC_PATH",
+                "operation": "CREATE",
+                "content": "Olá, turma!\nEste arquivo foi digitado pelo Step-by-Step.\nEsc pula a animação.\n",
+                "config": {
+                  "animation": "TYPING",
+                  "typingSpeedMs": 30
+                },
+                "targetPath": "mensagem.txt"
+              }
+            ],
+            "caption": "O código é **digitado** no editor, como se fosse ao vivo."
+          }
+        },
+        {
+          "id": "01-conheca-o-step-by-step-8",
+          "parentId": "01-conheca-o-step-by-step-1",
+          "type": "STEP",
+          "title": "Destacar linhas",
+          "data": {
+            "actions": [
+              {
+                "id": "01-conheca-o-step-by-step-9",
+                "kind": "HIGHLIGHT",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "mensagem.txt",
+                "startLine": 2,
+                "endLine": 2,
+                "note": "O destaque escurece o resto do arquivo e mostra esta nota."
+              }
+            ]
+          }
+        },
+        {
+          "id": "01-conheca-o-step-by-step-10",
+          "parentId": "01-conheca-o-step-by-step-1",
+          "type": "STEP",
+          "title": "Comando no terminal",
+          "data": {
+            "actions": [
+              {
+                "id": "01-conheca-o-step-by-step-11",
+                "kind": "TERMINAL",
+                "command": "cat mensagem.txt",
+                "executeImmediately": true,
+                "typingAnimation": true
+              }
+            ],
+            "caption": "Os comandos também são digitados, agora no terminal."
+          }
+        },
+        {
+          "id": "01-conheca-o-step-by-step-12",
+          "parentId": "01-conheca-o-step-by-step-1",
+          "type": "STEP",
+          "title": "Escolha um caminho",
+          "data": {
+            "actions": [
+              {
+                "id": "01-conheca-o-step-by-step-13",
+                "kind": "CHOICE",
+                "title": "O que você quer ver agora?",
+                "variable": "tour",
+                "showOnStage": true,
+                "options": [
+                  {
+                    "id": "01-conheca-o-step-by-step-14",
+                    "label": "Laboratório ao vivo",
+                    "target": "01-conheca-o-step-by-step-17"
+                  },
+                  {
+                    "id": "01-conheca-o-step-by-step-15",
+                    "label": "Desafio com cronômetro",
+                    "target": "01-conheca-o-step-by-step-20"
+                  }
+                ]
+              }
+            ],
+            "caption": "A aula pode ter **caminhos**: o professor escolhe na hora (clique, teclas 1 e 2 ou pelo celular)."
+          }
+        }
+      ]
+    },
+    {
+      "id": "01-conheca-o-step-by-step-16",
+      "parentId": null,
+      "type": "FLOW",
+      "title": "Caminhos",
+      "isExpanded": true,
+      "children": [
+        {
+          "id": "01-conheca-o-step-by-step-17",
+          "parentId": "01-conheca-o-step-by-step-16",
+          "type": "STEP",
+          "title": "Laboratório",
+          "data": {
+            "actions": [
+              {
+                "id": "01-conheca-o-step-by-step-18",
+                "kind": "LAB",
+                "targetMode": "SPECIFIC_PATH",
+                "targetPath": "mensagem.txt",
+                "layout": "horizontal",
+                "command": "cat mensagem.txt"
+              },
+              {
+                "id": "01-conheca-o-step-by-step-19",
+                "kind": "GOTO",
+                "target": "01-conheca-o-step-by-step-22"
+              }
+            ],
+            "caption": "Código e terminal juntos. Mude o texto, aperte **▶ Rodar** (ou Ctrl+Enter) e depois **F8**."
+          }
+        },
+        {
+          "id": "01-conheca-o-step-by-step-20",
+          "parentId": "01-conheca-o-step-by-step-16",
+          "type": "STEP",
+          "title": "Desafio",
+          "data": {
+            "actions": [
+              {
+                "id": "01-conheca-o-step-by-step-21",
+                "kind": "CHALLENGE",
+                "markdown": "## Desafio relâmpago\n\nMude o texto de **mensagem.txt** e rode `cat mensagem.txt` no terminal.",
+                "durationSec": 60
+              }
+            ]
+          }
+        },
+        {
+          "id": "01-conheca-o-step-by-step-22",
+          "parentId": "01-conheca-o-step-by-step-16",
+          "type": "STEP",
+          "title": "Fim do tour",
+          "data": {
+            "actions": [
+              {
+                "id": "01-conheca-o-step-by-step-23",
+                "kind": "SLIDE",
+                "markdown": "# Pronto!\n\n- Crie sua aula: **Passos → +**\n- Veja as outras **aulas de exemplo** na tela inicial\n- **Resetar** (aba Passos) devolve esta pasta ao começo",
+                "transition": "slide-up"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
