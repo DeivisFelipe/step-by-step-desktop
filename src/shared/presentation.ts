@@ -55,6 +55,16 @@ export interface StagePayload {
   running: boolean
 }
 
+/**
+ * Terminal output written while the terminal had this size. The shell positions the
+ * cursor by row and column, so mirrors replay each piece at the size it was written.
+ */
+export interface TerminalSegment {
+  cols: number
+  rows: number
+  data: string
+}
+
 export interface PresenterStep {
   id: string
   title: string
@@ -95,7 +105,12 @@ export interface PresentationStyle {
   chrome: 'mac' | 'windows' | 'none'
   /** Shiki theme. */
   theme: string
+  /** Code size. */
   fontSize: number
+  /** Largest terminal font; it shrinks so the app terminal's columns fit. */
+  terminalFontSize: number
+  /** Largest slide/challenge font; long slides shrink to fit. */
+  slideFontSize: number
   fontFamily: string
   lineNumbers: boolean
   shadow: boolean
@@ -135,6 +150,11 @@ export interface AppSettings {
     clicker: boolean
   }
   projector: boolean
+  /**
+   * Widest the app terminal gets, in columns (0 = the whole panel). The stage shows the
+   * same grid, so fewer columns mean bigger letters on the video.
+   */
+  terminalColumns: number
   /** Reopen the last project when the app starts (otherwise show the start screen). */
   reopenLastProject: boolean
 }
@@ -148,6 +168,8 @@ export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
     chrome: 'mac',
     theme: 'one-dark-pro',
     fontSize: 32,
+    terminalFontSize: 30,
+    slideFontSize: 48,
     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     lineNumbers: true,
     shadow: true,
@@ -165,6 +187,8 @@ export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
     chrome: 'mac',
     theme: 'github-dark',
     fontSize: 32,
+    terminalFontSize: 30,
+    slideFontSize: 48,
     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     lineNumbers: true,
     shadow: true,
@@ -182,6 +206,8 @@ export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
     chrome: 'mac',
     theme: 'github-light',
     fontSize: 32,
+    terminalFontSize: 30,
+    slideFontSize: 48,
     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     lineNumbers: true,
     shadow: true,
@@ -199,6 +225,8 @@ export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
     chrome: 'mac',
     theme: 'one-dark-pro',
     fontSize: 32,
+    terminalFontSize: 30,
+    slideFontSize: 48,
     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     lineNumbers: true,
     shadow: false,
@@ -216,6 +244,8 @@ export const BUILTIN_PRESETS: Record<string, PresentationStyle> = {
     chrome: 'mac',
     theme: 'dracula',
     fontSize: 30,
+    terminalFontSize: 26,
+    slideFontSize: 44,
     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
     lineNumbers: false,
     shadow: true,
@@ -253,6 +283,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   keys: { clicker: true },
   projector: false,
+  terminalColumns: 100,
   reopenLastProject: false
 }
 

@@ -214,7 +214,7 @@ const StyleEditor = (): React.JSX.Element => {
               ))}
             </select>
           </Row>
-          <Row label="Tamanho da fonte">
+          <Row label="Fonte do código">
             <input
               type="range"
               min={12}
@@ -224,6 +224,28 @@ const StyleEditor = (): React.JSX.Element => {
               className="flex-1 accent-sky-500"
             />
             <span className="w-10 text-right tabular-nums">{style.fontSize}px</span>
+          </Row>
+          <Row label="Fonte do terminal (máx.)">
+            <input
+              type="range"
+              min={12}
+              max={48}
+              value={style.terminalFontSize}
+              onChange={(e) => save({ terminalFontSize: Number(e.target.value) })}
+              className="flex-1 accent-sky-500"
+            />
+            <span className="w-10 text-right tabular-nums">{style.terminalFontSize}px</span>
+          </Row>
+          <Row label="Fonte dos slides (máx.)">
+            <input
+              type="range"
+              min={20}
+              max={80}
+              value={style.slideFontSize}
+              onChange={(e) => save({ slideFontSize: Number(e.target.value) })}
+              className="flex-1 accent-sky-500"
+            />
+            <span className="w-10 text-right tabular-nums">{style.slideFontSize}px</span>
           </Row>
           <Row label="Espaçamento">
             <input
@@ -519,6 +541,18 @@ const GeneralSection = (): React.JSX.Element => {
           onChange={(e) => update({ projector: e.target.checked })}
         />
         <span className="text-[12px] text-ide-muted">interface, editor e terminal maiores</span>
+      </Row>
+      <Row label="Largura do terminal">
+        <select
+          className={input}
+          value={settings.terminalColumns}
+          onChange={(e) => update({ terminalColumns: Number(e.target.value) })}
+        >
+          <option value={80}>80 colunas (letras maiores no palco)</option>
+          <option value={100}>100 colunas</option>
+          <option value={120}>120 colunas</option>
+          <option value={0}>Painel inteiro (letras menores no palco)</option>
+        </select>
       </Row>
       <Row label="Porta do servidor">
         <input

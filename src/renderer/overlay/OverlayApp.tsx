@@ -81,11 +81,11 @@ const StageContent = ({
   if (view === 'slide' || view === 'challenge') {
     const content =
       view === 'slide' && stage?.slide ? (
-        <SlideView slide={stage.slide} fontSize={style.fontSize * 1.5} />
+        <SlideView slide={stage.slide} fontSize={style.slideFontSize} />
       ) : view === 'challenge' && stage?.challenge ? (
         <ChallengeView
           challenge={stage.challenge}
-          fontSize={style.fontSize * 1.5}
+          fontSize={style.slideFontSize}
           clockOffset={clockOffset}
         />
       ) : null
@@ -104,7 +104,7 @@ const StageContent = ({
       <AppWindow style={style} title={stage?.terminalName || 'Terminal'} bg={bg} fg={fg}>
         <TerminalContent
           terminalId={stage?.terminalId ?? null}
-          fontSize={Math.round(style.fontSize * 0.8)}
+          fontSize={style.terminalFontSize}
           fontFamily={style.fontFamily}
           background={bg}
           foreground={fg}

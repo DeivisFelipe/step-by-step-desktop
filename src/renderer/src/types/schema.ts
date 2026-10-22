@@ -67,6 +67,11 @@ export interface TerminalAction {
   typingSpeedMs?: number
   /** Terminal tab name; created when missing. Empty = the active terminal. */
   terminal?: string
+  /**
+   * When the step showed code before this command, wait for the presenter (F8) so the
+   * code can be explained before the stage switches to the terminal. Default true.
+   */
+  pauseBefore?: boolean
 }
 
 /** Waits until some text shows up in a terminal (e.g. "Server ready"). */

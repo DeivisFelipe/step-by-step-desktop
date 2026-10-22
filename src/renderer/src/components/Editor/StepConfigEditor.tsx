@@ -400,6 +400,13 @@ const TerminalActionForm = ({ action, update }: FormProps<TerminalAction>): Reac
       >
         Digitação animada
       </Check>
+      <Check
+        checked={action.pauseBefore !== false}
+        onChange={(pauseBefore) => update({ pauseBefore })}
+      >
+        Esperar F8 antes de rodar, quando o passo mostrou código antes (dá tempo de explicar o
+        código)
+      </Check>
       {action.typingAnimation !== false && (
         <SpeedSlider
           value={action.typingSpeedMs ?? 35}

@@ -3,6 +3,7 @@ import { FolderPlus, Plus, RotateCcw, SkipBack, SkipForward, StickyNote } from '
 import { useLessonStore } from '../../store/useLessonStore'
 import { useIDEStore } from '../../store/useIDEStore'
 import { getNextStep, usePlayerStore } from '../../store/usePlayerStore'
+import { usePauseStore } from '../../engine/ExecutionEngine'
 import { flattenSteps } from '../../lib/tree'
 import { chooseWorkspace } from '../../lib/workspace'
 import { SidebarHeader } from './FileExplorerHeader'
@@ -12,6 +13,7 @@ const PlayerControls = (): React.JSX.Element => {
   const tree = useLessonStore((s) => s.tree)
   const history = usePlayerStore((s) => s.history)
   const running = usePlayerStore((s) => s.runningStepId !== null)
+  const paused = usePauseStore((s) => s.paused)
   const total = flattenSteps(tree).length
   const next = getNextStep(tree, history)
 
@@ -39,11 +41,11 @@ const PlayerControls = (): React.JSX.Element => {
         </button>
         <button
           className={clsx(button, 'flex-1 bg-ide-accent text-white hover:bg-sky-600')}
-          title="Executar o próximo passo (F8)"
-          disabled={running || !next}
+          title={paused ? 'Rodar o comando no terminal (F8)' : 'Executar o próximo passo (F8)'}
+          disabled={paused ? false : running || !next}
           onClick={() => usePlayerStore.getState().runNext()}
         >
-          Avançar <SkipForward size={14} />
+          {paused ? 'Rodar comando' : 'Avançar'} <SkipForward size={14} />
         </button>
       </div>
       <div className="flex items-center gap-2 text-[11px] text-ide-muted">
