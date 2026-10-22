@@ -3,6 +3,7 @@ import { useFileSystemStore } from '../store/useFileSystemStore'
 import { useIDEStore } from '../store/useIDEStore'
 import { useLessonStore } from '../store/useLessonStore'
 import { getCurrentStep, getNextStep, usePlayerStore } from '../store/usePlayerStore'
+import { runLabCommand, usePauseStore } from '../engine/ExecutionEngine'
 import { useStageStore } from '../store/useStageStore'
 import { useTerminalStore } from '../store/useTerminalStore'
 import { flattenSteps, flowOf } from './tree'
@@ -77,6 +78,8 @@ function buildStage(): StagePayload {
     slide: stage.slide,
     challenge: stage.challenge,
     preview: stage.preview,
+    choice: stage.choice,
+    lab: stage.view === 'lab' ? stage.lab : null,
     caption: current?.data?.caption ?? '',
     running: player.runningStepId !== null
   }
@@ -87,6 +90,7 @@ function buildPresenter(): PresenterPayload {
   const player = usePlayerStore.getState()
   const executed = new Set(player.history.map((h) => h.stepId))
   const current = getCurrentStep(lesson.tree, player.history, player.runningStepId)
+  const pause = usePauseStore.getState()
   return {
     steps: flattenSteps(lesson.tree).map((step, i) => ({
       id: step.id,
@@ -101,7 +105,14 @@ function buildPresenter(): PresenterPayload {
     nextId: getNextStep(lesson.tree, player.history)?.id ?? null,
     runningId: player.runningStepId,
     sessionStartedAt: player.sessionStartedAt,
-    stepStartedAt: player.stepStartedAt
+    stepStartedAt: player.stepStartedAt,
+    waiting: pause.kind
+      ? {
+          kind: pause.kind,
+          title: pause.choice?.title ?? '',
+          options: pause.choice?.options ?? []
+        }
+      : null
   }
 }
 
@@ -144,10 +155,21 @@ export function startPublisher(): void {
     scheduleStage()
     schedulePresenter()
   })
+  usePauseStore.subscribe(schedulePresenter)
   // Terminal ids are assigned asynchronously; a slow heartbeat keeps pages in sync.
   setInterval(scheduleStage, 1000)
   scheduleStage()
   schedulePresenter()
+}
+
+/**
+ * True when a message comes from one of the HTML slide frames. Slides are sandboxed
+ * (their origin is "null"), so the sender frame is checked instead of the origin.
+ */
+export function fromSlideFrame(event: MessageEvent): boolean {
+  return [...document.querySelectorAll('iframe')].some(
+    (frame) => frame.contentWindow === event.source && /\/slides\/[0-9a-f]+$/.test(frame.src)
+  )
 }
 
 /** Handles commands from the presenter view or a phone. */
@@ -167,6 +189,28 @@ export function startRemoteControl(): void {
       case 'goto':
         player.goTo(command.stepId)
         break
+      case 'choose':
+        player.choose(command.value)
+        break
+      case 'run':
+        if (command.value.trim()) player.runCommand(command.value, command.terminal)
+        else runLabCommand()
+        break
+    }
+  })
+
+  // HTML slides shown in the app call proximoPasso() / rodarComando() through postMessage.
+  window.addEventListener('message', (event) => {
+    if (!fromSlideFrame(event)) return
+    const data = event.data as { ssc?: string; value?: unknown; terminal?: unknown }
+    const player = usePlayerStore.getState()
+    if (
+      data?.ssc === 'proximoPasso' &&
+      (typeof data.value === 'number' || typeof data.value === 'string')
+    ) {
+      player.choose(data.value)
+    } else if (data?.ssc === 'rodarComando' && typeof data.value === 'string') {
+      player.runCommand(data.value, typeof data.terminal === 'string' ? data.terminal : undefined)
     }
   })
 }

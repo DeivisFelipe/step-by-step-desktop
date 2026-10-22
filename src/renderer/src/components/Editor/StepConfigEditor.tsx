@@ -20,11 +20,18 @@ import { useSettingsStore } from '../../store/useSettingsStore'
 import {
   ActionKind,
   ChallengeAction,
+  ChoiceAction,
+  ChoiceOption,
+  ConditionAction,
+  ConditionRule,
+  ConditionTest,
   FileAction,
   FileAnimation,
   FileOperation,
   FileTarget,
+  GotoAction,
   HighlightAction,
+  LabAction,
   LessonNode,
   ObsSceneAction,
   PreviewAction,
@@ -33,7 +40,15 @@ import {
   TerminalAction,
   WaitAction
 } from '../../types/schema'
-import { ACTION_LABELS, findNode, findPlaceholders, resolvePlaceholders } from '../../lib/tree'
+import {
+  ACTION_LABELS,
+  findNode,
+  findPlaceholders,
+  flattenSteps,
+  flowOf,
+  newId,
+  resolvePlaceholders
+} from '../../lib/tree'
 import { SLIDE_TRANSITIONS, SlideTransition } from '../../../../shared/presentation'
 import { languageFromPath } from '../../lib/paths'
 import { describeAction, resolveAssetUrl } from '../../engine/ExecutionEngine'
@@ -86,7 +101,11 @@ const ADDABLE: ActionKind[] = [
   'CHALLENGE',
   'WAIT',
   'PREVIEW',
-  'OBS_SCENE'
+  'OBS_SCENE',
+  'LAB',
+  'CHOICE',
+  'CONDITION',
+  'GOTO'
 ]
 
 const input =
@@ -702,6 +721,306 @@ const ObsSceneActionForm = ({ action, update }: FormProps<ObsSceneAction>): Reac
   )
 }
 
+/** Picks the step a path leads to; empty = the next step of the list. */
+const StepPicker = ({
+  value,
+  onChange,
+  exclude
+}: {
+  value: string | undefined
+  onChange: (value: string | undefined) => void
+  exclude?: string
+}): React.JSX.Element => {
+  const tree = useLessonStore((s) => s.tree)
+  const steps = flattenSteps(tree)
+  const missing = value && !steps.some((s) => s.id === value)
+  return (
+    <select
+      className={clsx(input, 'w-full')}
+      value={missing ? '' : (value ?? '')}
+      onChange={(e) => onChange(e.target.value || undefined)}
+    >
+      <option value="">Próximo passo da lista</option>
+      {steps.map((s, i) =>
+        s.id === exclude ? null : (
+          <option key={s.id} value={s.id}>
+            {i + 1}. {s.title}
+            {flowOf(tree, s) ? ` (${flowOf(tree, s)!.title})` : ''}
+          </option>
+        )
+      )}
+    </select>
+  )
+}
+
+const ChoiceActionForm = ({ step, action, update }: FormProps<ChoiceAction>): React.JSX.Element => {
+  const setOption = (id: string, partial: Partial<ChoiceOption>): void =>
+    update({ options: action.options.map((o) => (o.id === id ? { ...o, ...partial } : o)) })
+  return (
+    <div className="space-y-4">
+      <Field title="Pergunta" hint="Aparece acima das opções.">
+        <input
+          className={clsx(input, 'w-full')}
+          value={action.title}
+          onChange={(e) => update({ title: e.target.value })}
+        />
+      </Field>
+      <div className="space-y-2">
+        <div className={labelClass}>Opções (tecla, texto do botão e passo de destino)</div>
+        {action.options.map((option, i) => (
+          <div key={option.id} className="flex items-center gap-2">
+            <span className="w-5 text-right text-[12px] tabular-nums text-ide-muted">{i + 1}</span>
+            <input
+              className={clsx(input, 'flex-1')}
+              value={option.label}
+              placeholder="Texto do botão"
+              onChange={(e) => setOption(option.id, { label: e.target.value })}
+            />
+            <div className="w-[45%]">
+              <StepPicker
+                value={option.target}
+                exclude={step.id}
+                onChange={(target) => setOption(option.id, { target })}
+              />
+            </div>
+            <button
+              className="rounded p-1 text-gray-400 hover:bg-ide-hover hover:text-red-400"
+              title="Remover opção"
+              onClick={() => update({ options: action.options.filter((o) => o.id !== option.id) })}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+        <button
+          className="flex items-center gap-1 text-[12px] text-sky-400 hover:text-sky-300"
+          onClick={() =>
+            update({
+              options: [
+                ...action.options,
+                { id: newId(), label: `Opção ${String.fromCharCode(65 + action.options.length)}` }
+              ]
+            })
+          }
+        >
+          <Plus size={13} /> Adicionar opção
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field
+          title="Guardar a escolha na variável"
+          hint="Opcional. Um “Se / senão” mais adiante pode testar o valor."
+        >
+          <input
+            className={clsx(input, 'w-full font-mono')}
+            value={action.variable ?? ''}
+            placeholder="escolha"
+            onChange={(e) => update({ variable: e.target.value })}
+            spellCheck={false}
+          />
+        </Field>
+        <div className="pt-6">
+          <Check checked={action.showOnStage} onChange={(showOnStage) => update({ showOnStage })}>
+            Mostrar o menu para a turma (palco e OBS)
+          </Check>
+        </div>
+      </div>
+      <p className="text-[11px] text-ide-muted">
+        Durante a aula o passo espera a escolha: clique na opção, aperte 1–
+        {Math.max(1, action.options.length)}, use a visão do apresentador ou chame{' '}
+        <code>proximoPasso(0)</code> num slide em HTML (0 = primeira opção). O passo escolhido roda
+        em seguida.
+      </p>
+    </div>
+  )
+}
+
+const CONDITION_TYPES: { value: ConditionTest['type']; label: string }[] = [
+  { value: 'output-contains', label: 'A saída do terminal contém' },
+  { value: 'file-exists', label: 'O arquivo existe' },
+  { value: 'file-contains', label: 'O arquivo contém' },
+  { value: 'variable-equals', label: 'A variável é igual a' }
+]
+
+function emptyTest(type: ConditionTest['type']): ConditionTest {
+  switch (type) {
+    case 'output-contains':
+      return { type, text: '' }
+    case 'file-exists':
+      return { type, path: '' }
+    case 'file-contains':
+      return { type, path: '', text: '' }
+    case 'variable-equals':
+      return { type, name: '', value: '' }
+  }
+}
+
+const ConditionTestFields = ({
+  test,
+  onChange
+}: {
+  test: ConditionTest
+  onChange: (test: ConditionTest) => void
+}): React.JSX.Element => {
+  const text = (
+    placeholder: string,
+    value: string,
+    set: (v: string) => void
+  ): React.JSX.Element => (
+    <input
+      className={clsx(input, 'min-w-0 flex-1 font-mono')}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => set(e.target.value)}
+      spellCheck={false}
+    />
+  )
+  switch (test.type) {
+    case 'output-contains':
+      return (
+        <>
+          {text('texto ou /regex/', test.text, (v) => onChange({ ...test, text: v }))}
+          {text('terminal (vazio = ativo)', test.terminal ?? '', (v) =>
+            onChange({ ...test, terminal: v || undefined })
+          )}
+        </>
+      )
+    case 'file-exists':
+      return text('caminho/do/arquivo', test.path, (v) => onChange({ ...test, path: v }))
+    case 'file-contains':
+      return (
+        <>
+          {text('caminho/do/arquivo', test.path, (v) => onChange({ ...test, path: v }))}
+          {text('texto ou /regex/', test.text, (v) => onChange({ ...test, text: v }))}
+        </>
+      )
+    case 'variable-equals':
+      return (
+        <>
+          {text('variável', test.name, (v) => onChange({ ...test, name: v }))}
+          {text('valor', test.value, (v) => onChange({ ...test, value: v }))}
+        </>
+      )
+  }
+}
+
+const ConditionActionForm = ({
+  step,
+  action,
+  update
+}: FormProps<ConditionAction>): React.JSX.Element => {
+  const setRule = (id: string, partial: Partial<ConditionRule>): void =>
+    update({ rules: action.rules.map((r) => (r.id === id ? { ...r, ...partial } : r)) })
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] text-ide-muted">
+        Testadas em ordem: a primeira que for verdadeira decide o próximo passo. A saída do terminal
+        é a do último comando rodado nele.
+      </p>
+      {action.rules.map((rule, i) => (
+        <div key={rule.id} className="space-y-2 rounded border border-ide-border bg-ide-bg p-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-semibold text-amber-400">
+              {i === 0 ? 'Se' : 'Senão, se'}
+            </span>
+            <select
+              className={clsx(input, 'w-56')}
+              value={rule.test.type}
+              onChange={(e) =>
+                setRule(rule.id, { test: emptyTest(e.target.value as ConditionTest['type']) })
+              }
+            >
+              {CONDITION_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <ConditionTestFields test={rule.test} onChange={(test) => setRule(rule.id, { test })} />
+            <button
+              className="rounded p-1 text-gray-400 hover:bg-ide-hover hover:text-red-400"
+              title="Remover condição"
+              onClick={() => update({ rules: action.rules.filter((r) => r.id !== rule.id) })}
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="flex items-center gap-2 text-[12px] text-gray-400">
+            <span className="w-20 text-right">então vai para</span>
+            <StepPicker
+              value={rule.target}
+              exclude={step.id}
+              onChange={(target) => setRule(rule.id, { target })}
+            />
+          </div>
+        </div>
+      ))}
+      <button
+        className="flex items-center gap-1 text-[12px] text-sky-400 hover:text-sky-300"
+        onClick={() =>
+          update({
+            rules: [...action.rules, { id: newId(), test: { type: 'output-contains', text: '' } }]
+          })
+        }
+      >
+        <Plus size={13} /> Adicionar condição
+      </button>
+      <div className="flex items-center gap-2 text-[12px] text-gray-400">
+        <span className="font-semibold text-amber-400">Senão</span>
+        <span>vai para</span>
+        <StepPicker
+          value={action.otherwise}
+          exclude={step.id}
+          onChange={(otherwise) => update({ otherwise })}
+        />
+      </div>
+    </div>
+  )
+}
+
+const GotoActionForm = ({ step, action, update }: FormProps<GotoAction>): React.JSX.Element => (
+  <Field
+    title="Depois deste passo, ir para"
+    hint="Use no fim de um caminho de menu para voltar ao caminho principal, ou para repetir passos."
+  >
+    <StepPicker value={action.target} exclude={step.id} onChange={(target) => update({ target })} />
+  </Field>
+)
+
+const LabActionForm = ({ action, update }: FormProps<LabAction>): React.JSX.Element => (
+  <div className="space-y-4">
+    <TargetFields target={action} update={update} />
+    <div className="grid grid-cols-2 gap-4">
+      <Field title="Comando do ▶" hint="Roda no terminal a cada clique (ou Ctrl+Enter).">
+        <input
+          className={clsx(input, 'w-full font-mono')}
+          value={action.command}
+          placeholder="php index.php"
+          onChange={(e) => update({ command: e.target.value })}
+          spellCheck={false}
+        />
+      </Field>
+      <TerminalNameField value={action.terminal} onChange={(terminal) => update({ terminal })} />
+    </div>
+    <Field title="No palco" hint="Como o código e o terminal aparecem para a turma.">
+      <select
+        className={clsx(input, 'w-full')}
+        value={action.layout}
+        onChange={(e) => update({ layout: e.target.value as LabAction['layout'] })}
+      >
+        <option value="horizontal">Lado a lado (código à esquerda, terminal à direita)</option>
+        <option value="vertical">Empilhados (código em cima, terminal embaixo)</option>
+        <option value="tabs">Abas (mostra o terminal ao rodar e o código ao editar)</option>
+      </select>
+    </Field>
+    <p className="text-[11px] text-ide-muted">
+      Durante a aula o arquivo abre no editor para você mudar o código ao vivo. ▶ (ou Ctrl+Enter)
+      salva e roda o comando quantas vezes quiser; F8 continua a aula. Voltar o passo desfaz as
+      edições.
+    </p>
+  </div>
+)
+
 const ActionForm = ({
   step,
   action
@@ -728,6 +1047,14 @@ const ActionForm = ({
       return <PreviewActionForm step={step} action={action} update={update} />
     case 'OBS_SCENE':
       return <ObsSceneActionForm step={step} action={action} update={update} />
+    case 'CHOICE':
+      return <ChoiceActionForm step={step} action={action} update={update} />
+    case 'CONDITION':
+      return <ConditionActionForm step={step} action={action} update={update} />
+    case 'GOTO':
+      return <GotoActionForm step={step} action={action} update={update} />
+    case 'LAB':
+      return <LabActionForm step={step} action={action} update={update} />
   }
 }
 

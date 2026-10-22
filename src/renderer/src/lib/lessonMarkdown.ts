@@ -1,4 +1,13 @@
-import { FileAction, FileAnimation, FileOperation, LessonNode, StepAction } from '../types/schema'
+import {
+  ConditionAction,
+  ConditionTest,
+  FileAction,
+  FileAnimation,
+  FileOperation,
+  LabAction,
+  LessonNode,
+  StepAction
+} from '../types/schema'
 import { defaultAction, flattenSteps, newId, resolvePlaceholders } from './tree'
 import { languageFromPath } from './paths'
 import { SLIDE_TRANSITIONS, SlideTransition } from '../../../shared/presentation'
@@ -18,6 +27,13 @@ import { SLIDE_TRANSITIONS, SlideTransition } from '../../../shared/presentation
 //   ```desafio tempo="5"         → challenge (minutes; body = statement)
 //   ```preview                   → preview (body = URL or file)
 //   ```obs                       → OBS scene (body = scene name)
+//   ```escolha titulo="…" variavel="trilha"  → menu; lines "Opção -> Título do passo"
+//   ```se                        → if/else, one line per rule:
+//                                  saida contem "ok" -> Passo · arquivo existe "a.php" -> Passo
+//                                  arquivo contem "a.php" "echo" -> Passo
+//                                  variavel trilha = "PHP" -> Passo · senao -> Passo
+//   ```irpara                    → go to (body = step title)
+//   ```laboratorio arquivo="a.php" layout="lado-a-lado"  → lab (body = ▶ command)
 
 const OPERATIONS: Record<FileOperation, string> = {
   CREATE: 'criar',
@@ -34,7 +50,19 @@ const ANIMATIONS: Record<FileAnimation, string> = {
   MORPH: 'transformar',
   NONE: 'nenhuma'
 }
-const KINDS = new Set(['terminal', 'esperar', 'slide', 'destacar', 'desafio', 'preview', 'obs'])
+const KINDS = new Set([
+  'terminal',
+  'esperar',
+  'slide',
+  'destacar',
+  'desafio',
+  'preview',
+  'obs',
+  'escolha',
+  'se',
+  'irpara',
+  'laboratorio'
+])
 
 function invert<K extends string>(record: Record<K, string>): Record<string, K> {
   return Object.fromEntries(Object.entries(record).map(([k, v]) => [v, k])) as Record<string, K>
@@ -54,7 +82,7 @@ function fence(info: string, body: string): string {
   return `${ticks}${info}\n${body.replace(/\n$/, '')}\n${ticks}`
 }
 
-function serializeAction(action: StepAction): string {
+function serializeAction(action: StepAction, titleOf: (id: string) => string | undefined): string {
   switch (action.kind) {
     case 'FILE': {
       const lang = action.config.language ?? (languageFromPath(action.targetPath) || 'text')
@@ -114,12 +142,124 @@ function serializeAction(action: StepAction): string {
       return fence('preview', action.url)
     case 'OBS_SCENE':
       return fence('obs', action.scene)
+    case 'CHOICE':
+      return fence(
+        'escolha' +
+          attr('titulo', action.title) +
+          attr('variavel', action.variable) +
+          attr('palco', action.showOnStage ? '' : 'nao'),
+        action.options.map((o) => o.label + arrow(o.target, titleOf)).join('\n')
+      )
+    case 'CONDITION':
+      return fence(
+        'se',
+        [
+          ...action.rules.map((r) => serializeTest(r.test) + arrow(r.target, titleOf)),
+          ...(action.otherwise ? ['senao' + arrow(action.otherwise, titleOf)] : [])
+        ].join('\n')
+      )
+    case 'GOTO':
+      return fence('irpara', (action.target && titleOf(action.target)) || '')
+    case 'LAB':
+      return fence(
+        'laboratorio' +
+          attr('arquivo', action.targetMode === 'SPECIFIC_PATH' ? action.targetPath : '') +
+          attr('layout', LAB_LAYOUTS[action.layout]) +
+          attr('nome', action.terminal),
+        action.command
+      )
+  }
+}
+
+const LAB_LAYOUTS: Record<LabAction['layout'], string> = {
+  horizontal: 'lado-a-lado',
+  vertical: 'empilhado',
+  tabs: 'abas'
+}
+const LAB_LAYOUT_BY_NAME = invert(LAB_LAYOUTS)
+
+/** " -> Step title" for a path target (nothing for "next of the list"). */
+function arrow(target: string | undefined, titleOf: (id: string) => string | undefined): string {
+  const title = target ? titleOf(target) : undefined
+  return title ? ` -> ${title}` : ''
+}
+
+function serializeTest(test: ConditionTest): string {
+  const q = (value: string): string => JSON.stringify(value)
+  switch (test.type) {
+    case 'output-contains':
+      return `saida contem ${q(test.text)}` + (test.terminal ? ` terminal=${q(test.terminal)}` : '')
+    case 'file-exists':
+      return `arquivo existe ${q(test.path)}`
+    case 'file-contains':
+      return `arquivo contem ${q(test.path)} ${q(test.text)}`
+    case 'variable-equals':
+      return `variavel ${test.name} = ${q(test.value)}`
+  }
+}
+
+/** Marks a target written as a step title; resolved to an id once all steps are known. */
+const TITLE_REF = '\u0000'
+
+/** Splits "text -> Step title" (also "→"); the target is kept as a title reference. */
+function splitArrow(line: string): { text: string; target?: string } {
+  const match = /^(.*?)\s*(?:->|→)\s*(.+)$/.exec(line)
+  if (!match) return { text: line.trim() }
+  return { text: match[1].trim(), target: TITLE_REF + match[2].trim() }
+}
+
+function parseTest(text: string): ConditionTest | null {
+  const strings = [...text.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => {
+    try {
+      return JSON.parse(`"${m[1]}"`) as string
+    } catch {
+      return m[1]
+    }
+  })
+  const lower = text.toLowerCase()
+  if (lower.startsWith('saida contem') || lower.startsWith('saída contém')) {
+    const terminal = /terminal="((?:[^"\\]|\\.)*)"/.exec(text)?.[1]
+    return { type: 'output-contains', text: strings[0] ?? '', terminal: terminal || undefined }
+  }
+  if (lower.startsWith('arquivo existe')) return { type: 'file-exists', path: strings[0] ?? '' }
+  if (lower.startsWith('arquivo contem') || lower.startsWith('arquivo contém')) {
+    return { type: 'file-contains', path: strings[0] ?? '', text: strings[1] ?? '' }
+  }
+  const variable = /^vari[aá]vel\s+([\w.-]+)\s*=/i.exec(text)
+  if (variable) return { type: 'variable-equals', name: variable[1], value: strings[0] ?? '' }
+  return null
+}
+
+/** Replaces title references (from the Markdown) with step ids. */
+function resolveTargets(tree: LessonNode[]): void {
+  const byTitle = new Map<string, string>()
+  for (const step of flattenSteps(tree)) {
+    const key = step.title.trim().toLowerCase()
+    if (!byTitle.has(key)) byTitle.set(key, step.id)
+  }
+  const resolve = (target: string | undefined): string | undefined =>
+    target?.startsWith(TITLE_REF)
+      ? byTitle.get(target.slice(TITLE_REF.length).trim().toLowerCase())
+      : target
+  for (const step of flattenSteps(tree)) {
+    for (const action of step.data?.actions ?? []) {
+      if (action.kind === 'CHOICE') {
+        action.options = action.options.map((o) => ({ ...o, target: resolve(o.target) }))
+      } else if (action.kind === 'CONDITION') {
+        action.rules = action.rules.map((r) => ({ ...r, target: resolve(r.target) }))
+        action.otherwise = resolve(action.otherwise)
+      } else if (action.kind === 'GOTO') {
+        action.target = resolve(action.target)
+      }
+    }
   }
 }
 
 /** The whole lesson as editable Markdown (round-trips through `parseLessonMarkdown`). */
 export function lessonToMarkdown(tree: LessonNode[], title: string): string {
   const out: string[] = []
+  const titles = new Map(flattenSteps(tree).map((s) => [s.id, s.title]))
+  const titleOf = (id: string): string | undefined => titles.get(id)
   if (title) out.push(`---\ntitulo: ${title}\n---\n`)
   const writeStep = (step: LessonNode): void => {
     out.push(`## ${step.title}\n`)
@@ -133,7 +273,9 @@ export function lessonToMarkdown(tree: LessonNode[], title: string): string {
           .join('\n') + '\n'
       )
     }
-    for (const action of step.data?.actions ?? []) out.push(serializeAction(action) + '\n')
+    for (const action of step.data?.actions ?? []) {
+      out.push(serializeAction(action, titleOf) + '\n')
+    }
   }
   for (const node of tree) {
     if (node.type === 'FLOW') {
@@ -218,6 +360,50 @@ function actionFromFence(info: string, body: string): StepAction {
       return { id, kind: 'PREVIEW', url: body.trim() }
     case 'obs':
       return { id, kind: 'OBS_SCENE', scene: body.trim() }
+    case 'escolha':
+      return {
+        id,
+        kind: 'CHOICE',
+        title: attrs.titulo ?? '',
+        variable: attrs.variavel || undefined,
+        showOnStage: attrs.palco !== 'nao',
+        options: body
+          .split('\n')
+          .filter((l) => l.trim())
+          .map((line) => {
+            const { text, target } = splitArrow(line)
+            return { id: newId(), label: text, target }
+          })
+      }
+    case 'se': {
+      const action: ConditionAction = { id, kind: 'CONDITION', rules: [] }
+      for (const line of body.split('\n').filter((l) => l.trim())) {
+        const { text, target } = splitArrow(line)
+        if (/^sen[aã]o$/i.test(text)) {
+          action.otherwise = target
+          continue
+        }
+        const test = parseTest(text)
+        if (test) action.rules.push({ id: newId(), test, target })
+      }
+      return action
+    }
+    case 'irpara':
+      return {
+        id,
+        kind: 'GOTO',
+        target: body.trim() ? TITLE_REF + body.trim() : undefined
+      }
+    case 'laboratorio':
+      return {
+        id,
+        kind: 'LAB',
+        targetMode: attrs.arquivo ? 'SPECIFIC_PATH' : 'ACTIVE_FILE',
+        targetPath: attrs.arquivo || undefined,
+        layout: LAB_LAYOUT_BY_NAME[attrs.layout] ?? 'horizontal',
+        terminal: attrs.nome || undefined,
+        command: body.trim()
+      }
     default: {
       const operation = OPERATION_BY_NAME[attrs.operacao] ?? (attrs.arquivo ? 'CREATE' : 'APPEND')
       const action: FileAction = {
@@ -343,6 +529,7 @@ export function parseLessonMarkdown(markdown: string): { title: string; tree: Le
     else caption.push(line)
   }
   finishStep()
+  resolveTargets(tree)
   return { title, tree }
 }
 
@@ -415,6 +602,19 @@ export function lessonToHandout(tree: LessonNode[], title: string, workspaceName
           break
         case 'PREVIEW':
           out.push(`Abra no navegador: ${action.url}\n`)
+          break
+        case 'LAB':
+          out.push(
+            `**Experimente:** mude${action.targetPath ? ` \`${action.targetPath}\`` : ' o código'} e rode:\n`
+          )
+          out.push(fence('bash', resolvePlaceholders(action.command)) + '\n')
+          break
+        case 'CHOICE':
+          if (action.options.length) {
+            out.push(
+              `**${action.title.trim() || 'Escolha'}** ${action.options.map((o) => o.label).join(' · ')}\n`
+            )
+          }
           break
       }
     }

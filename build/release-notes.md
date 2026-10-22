@@ -1,13 +1,38 @@
 **Step-by-Step Code** — prepare aulas de programação e apresente o código passo a passo: digitação animada, comandos no terminal, slides, destaques, desafios e páginas para o OBS. Veja todas as funcionalidades no [README](https://github.com/DeivisFelipe/step-by-step-desktop#readme).
 
-### Novidades da 1.0.3
+### Novidades da 2.0
 
-- **Trocar de projeto**: menu com o nome do projeto (barra lateral e barra de status) para abrir outra pasta, abrir um recente ou fechar o projeto. O app agora abre na tela inicial; para reabrir o último projeto, ative em Configurações.
-- **Terminais**: voltar um passo para o comando que ele iniciou (como um servidor); resetar a aula reinicia os terminais. Novo botão para ver os terminais lado a lado.
-- **Grafo do fluxo**: arraste um passo para os lados para mudar a ordem; selecione uma ligação e aperte Delete para mandar o passo para o fim.
-- **Palco**: o comentário do destaque fica abaixo da linha, igual ao editor.
-- **Importar/exportar**: o fluxo importado é aberto e o arquivo exportado é mostrado na pasta; títulos da apostila corrigidos.
-- Só uma janela do app por vez; a digitação não fica lenta com a janela em segundo plano.
+**Aulas com caminhos**
+
+- **Menu de escolha**: o passo mostra opções (no app, no palco e na visão do apresentador) e o professor escolhe por clique, teclas 1–9 ou pelo celular; o passo escolhido roda em seguida.
+- **Se / senão**: escolhe o próximo passo pela saída do terminal, por um arquivo que existe ou contém um texto, ou pela opção escolhida num menu.
+- **Ir para**: termina um caminho e volta ao principal (ou repete passos).
+- **No diagrama do fluxo**: cada opção e condição tem sua bolinha; puxe até o passo de destino. Clique direito cria menus e condições.
+
+**Laboratório (código + terminal)**
+
+- Código e terminal juntos no palco, lado a lado, empilhados ou em abas. O professor edita o código ao vivo e roda com ▶ (`Ctrl+Enter`) quantas vezes quiser; `F8` continua e voltar desfaz as edições.
+
+**Slides**
+
+- **Slides em HTML**, com estilos, scripts e animações próprios. Botões no slide podem escolher o caminho (`proximoPasso(n)`) ou rodar um comando no terminal (`rodarComando('…')`).
+- **Transições** entre slides: esmaecer, deslizar, zoom, desfoque, girar 3D e cortina.
+- **Tela cheia**: o slide ocupa 100% da largura e da altura da página, sem fundo.
+- Slides longos diminuem a fonte até caber, sem cortar.
+
+**Palco e terminal**
+
+- O terminal do palco não mistura mais as linhas e fica legível (largura do terminal ajustável em Configurações).
+- Tamanhos de fonte separados para código, terminal e slides.
+- Passos com código e depois um comando esperam `F8` antes de rodar o comando, para dar tempo de explicar o código.
+- Código no palco aceita rolagem e seleção.
+- `Shift+F8` cancela um passo que está esperando (menu, laboratório ou comando) e desfaz o que ele fez.
+
+**Correções**
+
+- Arrastar passos no diagrama não pisca mais e a nova ordem fica ao soltar.
+- O progresso conta cada passo uma vez (rodar de novo não passa de 100%).
+- Logo da tela inicial maior.
 
 ### Instalação
 

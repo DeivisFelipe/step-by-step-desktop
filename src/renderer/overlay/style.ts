@@ -47,6 +47,8 @@ export function useStage(): StagePayload | null {
     challenge: null,
     preview: null,
     caption: 'Uma **função** recebe parâmetros e devolve um resultado.',
+    choice: null,
+    lab: null,
     running: false
   }
 }

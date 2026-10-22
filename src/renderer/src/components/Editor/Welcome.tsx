@@ -24,7 +24,7 @@ const Welcome = (): React.JSX.Element => {
     <div className="flex h-full items-center justify-center overflow-y-auto p-8">
       <div className="flex w-full max-w-3xl flex-col items-center gap-10 md:flex-row md:items-start">
         <div className="flex flex-col items-center text-center md:w-1/2">
-          <img src={logo} alt="" className="mb-4 h-40 w-40 opacity-90" draggable={false} />
+          <img src={logo} alt="" className="mb-4 h-48 w-48 opacity-90" draggable={false} />
           <h1 className="text-3xl font-light tracking-wide text-white">Step-by-Step Code</h1>
           <p className="mt-2 text-sm text-ide-muted">
             Prepare a aula antes e apresente o código passo a passo.

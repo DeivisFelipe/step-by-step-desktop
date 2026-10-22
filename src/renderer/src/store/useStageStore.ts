@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import { StageChallenge, StageHighlight, StageSlide, StageView } from '../../../shared/presentation'
+import {
+  StageChallenge,
+  StageChoice,
+  StageHighlight,
+  StageLab,
+  StageSlide,
+  StageView
+} from '../../../shared/presentation'
 import { useSettingsStore } from './useSettingsStore'
 
 export interface PathHighlight extends StageHighlight {
@@ -14,6 +21,8 @@ export interface StageSnapshot {
   preview: string | null
   highlight: PathHighlight | null
   terminalKey: string | null
+  choice: StageChoice | null
+  lab: StageLab | null
 }
 
 interface StageStore extends StageSnapshot {
@@ -29,6 +38,9 @@ interface StageStore extends StageSnapshot {
   showPreview: (url: string) => void
   setHighlight: (highlight: PathHighlight | null) => void
   setTerminal: (key: string) => void
+  setChoice: (choice: StageChoice | null) => void
+  setLab: (lab: StageLab | null) => void
+  setLabTab: (tab: StageLab['tab']) => void
   setCodeTransition: (transition: StageStore['codeTransition']) => void
   flashLines: (path: string, lines: number[]) => void
   snapshot: () => StageSnapshot
@@ -42,7 +54,9 @@ const EMPTY: StageSnapshot = {
   challenge: null,
   preview: null,
   highlight: null,
-  terminalKey: null
+  terminalKey: null,
+  choice: null,
+  lab: null
 }
 
 export const useStageStore = create<StageStore>((set, get) => ({
@@ -71,11 +85,14 @@ export const useStageStore = create<StageStore>((set, get) => ({
   },
   setHighlight: (highlight) => set({ highlight }),
   setTerminal: (terminalKey) => set({ terminalKey }),
+  setChoice: (choice) => set({ choice }),
+  setLab: (lab) => set({ lab }),
+  setLabTab: (tab) => set((state) => (state.lab ? { lab: { ...state.lab, tab } } : {})),
   setCodeTransition: (codeTransition) => set({ codeTransition }),
   flashLines: (path, lines) => set({ flash: { path, lines, key: Date.now() } }),
   snapshot: () => {
-    const { view, slide, challenge, preview, highlight, terminalKey } = get()
-    return { view, slide, challenge, preview, highlight, terminalKey }
+    const { view, slide, challenge, preview, highlight, terminalKey, choice, lab } = get()
+    return { view, slide, challenge, preview, highlight, terminalKey, choice, lab }
   },
   restore: (snapshot) => {
     // HTML slides live in the server's memory: serve it again (e.g. after a restart).

@@ -2,9 +2,13 @@ import type { editor as MonacoEditor } from 'monaco-editor'
 import { create } from 'zustand'
 import {
   ChallengeAction,
+  ChoiceAction,
+  ConditionAction,
+  ConditionTest,
   FileAction,
   FileTarget,
   HighlightAction,
+  LabAction,
   LessonNode,
   PreviewAction,
   SlideAction,
@@ -43,6 +47,12 @@ export interface TerminalUse {
 export interface StepRun {
   changes: FileChange[]
   terminals: TerminalUse[]
+  /** Step chosen by a menu, condition or "go to" (undefined = the next one of the list). */
+  next?: string
+  /** Run the next step right away (a menu option was picked). */
+  advance?: boolean
+  /** Lesson variables after the step (menus can set them). */
+  variables: Record<string, string>
   /** Set when an action failed; the changes made before it are still listed. */
   error: unknown | null
 }
@@ -50,6 +60,8 @@ export interface StepRun {
 export interface RunOptions {
   /** No animations (used by "go to step"). */
   instant?: boolean
+  /** Lesson variables before the step. */
+  variables?: Record<string, string>
 }
 
 /** An error meant to be shown to the presenter as is. */
@@ -65,22 +77,68 @@ export function skipAnimation(): void {
   skipRequested = true
 }
 
-/** Set while a step waits for the presenter (F8) before running a terminal command. */
-export const usePauseStore = create<{ paused: boolean }>(() => ({ paused: false }))
-let resumePaused: (() => void) | null = null
+/** What a running step is waiting for from the presenter. */
+export interface PauseState {
+  /** F8 before a terminal command, the lab (F8 continues) or a menu option. */
+  kind: 'terminal' | 'lab' | 'choice' | null
+  choice: { title: string; options: string[] } | null
+  lab: { path: string; command: string } | null
+}
 
-/** Continues a step waiting before a terminal command; false when none is waiting. */
-export function resumeStep(): boolean {
+export const usePauseStore = create<PauseState>(() => ({ kind: null, choice: null, lab: null }))
+let resumePaused: ((value?: number) => void) | null = null
+
+const CANCELLED = -1
+
+async function waitForPresenter(state: Partial<PauseState>): Promise<number | undefined> {
+  usePauseStore.setState({ kind: null, choice: null, lab: null, ...state })
+  const value = await new Promise<number | undefined>((resolve) => (resumePaused = resolve))
+  // The failed step is undone by the player, like any other error.
+  if (value === CANCELLED) throw new StepError('Passo cancelado: o que ele fez foi desfeito.')
+  return value
+}
+
+/** Shift+F8 while a step waits: cancels the step (its changes are undone). */
+export function cancelWaiting(): boolean {
+  if (!usePauseStore.getState().kind) return false
+  finishPause(CANCELLED)
+  return true
+}
+
+function finishPause(value?: number): void {
   const resume = resumePaused
-  if (!resume) return false
   resumePaused = null
-  usePauseStore.setState({ paused: false })
-  resume()
+  usePauseStore.setState({ kind: null, choice: null, lab: null })
+  resume?.(value)
+}
+
+/** F8 while a step waits: continues it (a menu needs an option instead). False when none waits. */
+export function resumeStep(): boolean {
+  const { kind, choice } = usePauseStore.getState()
+  if (!kind) return false
+  if (kind === 'choice') {
+    useIDEStore
+      .getState()
+      .notify(`Escolha uma das opções (teclas 1 a ${choice?.options.length ?? 1}).`, 'info')
+    return true
+  }
+  finishPause()
+  return true
+}
+
+/** Picks option `index` (0-based) of the menu on screen. False when no menu waits. */
+export function chooseOption(index: number): boolean {
+  const { kind, choice } = usePauseStore.getState()
+  if (kind !== 'choice' || !choice || index < 0 || index >= choice.options.length) return false
+  finishPause(index)
   return true
 }
 
 interface Context {
   instant: boolean
+  next?: string
+  advance?: boolean
+  variables: Record<string, string>
   /** The step put code on stage (file or highlight) since its last terminal command. */
   shownCode: boolean
   record: (change: FileChange) => void
@@ -90,12 +148,14 @@ interface Context {
 export async function executeStep(step: LessonNode, options: RunOptions = {}): Promise<StepRun> {
   const changes: FileChange[] = []
   const terminals: TerminalUse[] = []
-  if (step.type !== 'STEP' || !step.data) return { changes, terminals, error: null }
+  const variables = { ...(options.variables ?? {}) }
+  if (step.type !== 'STEP' || !step.data) return { changes, terminals, variables, error: null }
   skipRequested = false
   useStageStore.getState().setHighlight(null)
 
   const ctx: Context = {
     instant: !!options.instant,
+    variables,
     shownCode: false,
     // Keep only the first "before" of each file: that is what undo restores.
     record: (change) => {
@@ -109,9 +169,16 @@ export async function executeStep(step: LessonNode, options: RunOptions = {}): P
   }
   try {
     for (const action of step.data.actions) await runAction(action, ctx)
-    return { changes, terminals, error: null }
+    const { next, advance } = ctx
+    return { changes, terminals, variables, next, advance, error: null }
   } catch (error) {
-    return { changes, terminals, error }
+    return { changes, terminals, variables, error }
+  } finally {
+    // A failed step must not leave a menu or lab waiting.
+    if (resumePaused) {
+      resumePaused = null
+      usePauseStore.setState({ kind: null, choice: null, lab: null })
+    }
   }
 }
 
@@ -136,7 +203,149 @@ async function runAction(action: StepAction, ctx: Context): Promise<void> {
     case 'OBS_SCENE':
       if (action.scene.trim()) window.api.obsSetScene(action.scene.trim())
       return
+    case 'CHOICE':
+      return runChoiceAction(action, ctx)
+    case 'CONDITION':
+      ctx.next = await evaluateCondition(action, ctx)
+      return
+    case 'GOTO':
+      ctx.next = action.target || undefined
+      return
+    case 'LAB':
+      return runLabAction(action, ctx)
   }
+}
+
+// --- Paths (menu, if / else, go to) ------------------------------------------
+
+async function runChoiceAction(action: ChoiceAction, ctx: Context): Promise<void> {
+  const options = action.options.filter((o) => o.label.trim())
+  if (options.length === 0) throw new StepError('O menu não tem opções.')
+  let index = 0
+  if (!ctx.instant) {
+    const title = resolvePlaceholders(action.title)
+    const labels = options.map((o) => resolvePlaceholders(o.label))
+    const stage = useStageStore.getState()
+    if (action.showOnStage) stage.setChoice({ title, options: labels })
+    index = (await waitForPresenter({ kind: 'choice', choice: { title, options: labels } })) ?? 0
+    useStageStore.getState().setChoice(null)
+    ctx.advance = true
+  }
+  const option = options[index]
+  ctx.next = option.target || undefined
+  if (action.variable?.trim()) ctx.variables[action.variable.trim()] = option.label
+}
+
+/** Id of the terminal called `name` (the active one when empty), if it is running. */
+function terminalIdByName(name: string | undefined): number | null {
+  const { sessions, activeKey } = useTerminalStore.getState()
+  const key = name?.trim() ? sessions.find((s) => s.name === name.trim())?.key : activeKey
+  return key ? getTerminalId(key) : null
+}
+
+export async function testCondition(
+  test: ConditionTest,
+  variables: Record<string, string>
+): Promise<boolean> {
+  const root = useFileSystemStore.getState().rootPath
+  switch (test.type) {
+    case 'output-contains': {
+      const id = terminalIdByName(test.terminal)
+      return id !== null && matchesOutput(terminalOutputSinceMark(id), test.text)
+    }
+    case 'file-exists': {
+      const path = resolveInWorkspace(root, test.path)
+      return !!path && (await window.api.exists(path))
+    }
+    case 'file-contains': {
+      const path = resolveInWorkspace(root, test.path)
+      if (!path || !(await window.api.exists(path))) return false
+      const cached = useFileSystemStore.getState().files[path]
+      const content = cached ? cached.content : await window.api.readFile(path)
+      return matchesOutput(content ?? '', test.text)
+    }
+    case 'variable-equals':
+      return (
+        (variables[test.name.trim()] ?? '').trim().toLowerCase() === test.value.trim().toLowerCase()
+      )
+  }
+}
+
+async function evaluateCondition(
+  action: ConditionAction,
+  ctx: Context
+): Promise<string | undefined> {
+  for (const rule of action.rules) {
+    if (await testCondition(rule.test, ctx.variables)) return rule.target || undefined
+  }
+  return action.otherwise || undefined
+}
+
+// --- Lab ---------------------------------------------------------------------
+
+let activeLab: { path: string; command: string; terminalId: number } | null = null
+
+/** Columns of the lab terminal when it shares the stage with the code. */
+const LAB_SIDE_COLUMNS = 60
+
+/** ▶ in the lab: saves the code and runs the lab command in its terminal. */
+export async function runLabCommand(): Promise<void> {
+  const lab = activeLab
+  if (!lab) return
+  const fs = useFileSystemStore.getState()
+  if (fs.files[lab.path]) await fs.saveFile(lab.path)
+  useStageStore.getState().setLabTab('terminal')
+  markTerminalOutput(lab.terminalId)
+  window.api.sendTerminalInput(lab.terminalId, lab.command.replace(/\r?\n/g, '\r') + '\r')
+}
+
+async function runLabAction(action: LabAction, ctx: Context): Promise<void> {
+  const command = resolvePlaceholders(action.command).trim()
+  if (!command) throw new StepError('Informe o comando que o ▶ do laboratório roda.')
+  const path = resolveTarget(action)
+  const fs = useFileSystemStore.getState()
+  const existed = await window.api.exists(path)
+  if (existed) {
+    if (!(await fs.loadFile(path))) throw new StepError(`Não foi possível ler ${path}.`)
+    ctx.record({ path, before: useFileSystemStore.getState().files[path].content })
+  } else {
+    ctx.record({ path, before: null })
+    await fs.writeFile(path, '')
+    await fs.expandTo(path)
+  }
+  useIDEStore.getState().openFileTab(path)
+  useFileSystemStore.getState().select(path)
+
+  const { key, id } = await terminalFor(action.terminal, ctx.useTerminal)
+  const stage = useStageStore.getState()
+  stage.setTerminal(key)
+  stage.setLab({ layout: action.layout, tab: 'code' })
+  stage.setView('lab', true)
+  ctx.shownCode = false
+  if (ctx.instant) return
+
+  activeLab = { path, command, terminalId: id }
+  // Side by side the terminal gets half the stage: fewer columns keep its letters readable.
+  const terminals = useTerminalStore.getState()
+  const previousColumns = terminals.sessions.find((s) => s.key === key)?.columns
+  if (action.layout === 'horizontal') terminals.setColumns(key, LAB_SIDE_COLUMNS)
+  // In tabs layout, typing brings the code back to the front.
+  const offEdit = useFileSystemStore.subscribe((state, previous) => {
+    if (state.files[path]?.content !== previous.files[path]?.content) {
+      useStageStore.getState().setLabTab('code')
+    }
+  })
+  useIDEStore
+    .getState()
+    .notify('Laboratório: edite o código ao vivo, ▶ (Ctrl+Enter) roda, F8 continua.', 'info', 6000)
+  try {
+    await waitForPresenter({ kind: 'lab', lab: { path, command } })
+  } finally {
+    offEdit()
+    activeLab = null
+    useTerminalStore.getState().setColumns(key, previousColumns)
+  }
+  if (useFileSystemStore.getState().files[path]) await fs.saveFile(path)
 }
 
 /**
@@ -439,14 +648,15 @@ async function typeInto(
 
 // --- Terminal ----------------------------------------------------------------
 
-async function terminalFor(
+/** Opens (or creates) the terminal `name`; `record` keeps it so undo can stop it. */
+export async function terminalFor(
   name: string | undefined,
-  ctx: Context
+  record: (use: TerminalUse) => void
 ): Promise<{ key: string; id: number }> {
   const terminals = useTerminalStore.getState()
   const created = !terminals.has(name)
   const key = terminals.ensure(name)
-  ctx.useTerminal({ key, created })
+  record({ key, created })
   terminals.setActive(key)
   useIDEStore.getState().setTerminalVisible(true)
   for (let elapsed = 0; elapsed < 5000; elapsed += 50) {
@@ -466,13 +676,12 @@ async function runTerminalAction(action: TerminalAction, ctx: Context): Promise<
     useIDEStore
       .getState()
       .notify('Código pronto. Aperte F8 (Avançar) para rodar o comando no terminal.', 'info', 6000)
-    usePauseStore.setState({ paused: true })
-    await new Promise<void>((resolve) => (resumePaused = resolve))
+    await waitForPresenter({ kind: 'terminal' })
     skipRequested = false
   }
   ctx.shownCode = false
 
-  const { key, id } = await terminalFor(action.terminal, ctx)
+  const { key, id } = await terminalFor(action.terminal, ctx.useTerminal)
   const stage = useStageStore.getState()
   stage.setTerminal(key)
   stage.setView('terminal', true)
@@ -510,7 +719,7 @@ function matchesOutput(output: string, pattern: string): boolean {
 async function runWaitAction(action: WaitAction, ctx: Context): Promise<void> {
   const pattern = action.pattern.trim()
   if (!pattern) throw new StepError('Informe o texto que deve aparecer no terminal.')
-  const { id } = await terminalFor(action.terminal, ctx)
+  const { id } = await terminalFor(action.terminal, ctx.useTerminal)
   const timeout = Math.max(1, action.timeoutSec || 60) * 1000
   for (let elapsed = 0; elapsed < timeout; elapsed += 100) {
     if (skipRequested) return
@@ -607,6 +816,7 @@ export function describeAction(action: StepAction, root: string | null): string 
     case 'WAIT':
       return `esperar "${action.pattern}"`
     case 'SLIDE':
+      if (action.format === 'html') return 'slide em HTML'
       return (
         action.markdown
           .split('\n')
@@ -621,5 +831,13 @@ export function describeAction(action: StepAction, root: string | null): string 
       return action.url
     case 'OBS_SCENE':
       return `cena "${action.scene}"`
+    case 'CHOICE':
+      return `menu: ${action.options.map((o) => o.label).join(' / ') || 'sem opções'}`
+    case 'CONDITION':
+      return `se/senão: ${action.rules.length} condição(ões)`
+    case 'GOTO':
+      return 'ir para outro passo'
+    case 'LAB':
+      return `laboratório ${describeTarget(action, root)} · $ ${action.command.split('\n')[0]}`
   }
 }

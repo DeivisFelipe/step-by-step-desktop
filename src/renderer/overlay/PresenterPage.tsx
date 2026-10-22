@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { CheckCircle2, Loader2, SkipBack, SkipForward, FastForward, StickyNote } from 'lucide-react'
+import {
+  CheckCircle2,
+  Loader2,
+  Play,
+  Signpost,
+  SkipBack,
+  SkipForward,
+  FastForward,
+  StickyNote
+} from 'lucide-react'
 import { Markdown } from '../common/StageViews'
 import { formatClock } from '../common/format'
 import { PresenterStep } from '../../shared/presentation'
@@ -76,6 +85,7 @@ const PresenterPage = (): React.JSX.Element => {
   const current = steps.find((s) => s.id === presenter?.currentId)
   const next = steps.find((s) => s.id === presenter?.nextId)
   const running = !!presenter?.runningId
+  const waiting = presenter?.waiting ?? null
   const executed = steps.filter((s) => s.executed).length
 
   const button =
@@ -93,7 +103,14 @@ const PresenterPage = (): React.JSX.Element => {
             >
               <SkipBack size={20} /> Voltar
             </button>
-            {running ? (
+            {waiting && waiting.kind !== 'choice' ? (
+              <button
+                className={clsx(button, 'bg-sky-600 text-white hover:bg-sky-500')}
+                onClick={() => sendCommand({ command: 'next' })}
+              >
+                {waiting.kind === 'lab' ? 'Continuar' : 'Rodar comando'} <SkipForward size={20} />
+              </button>
+            ) : running ? (
               <button
                 className={clsx(button, 'bg-amber-600 text-white hover:bg-amber-500')}
                 onClick={() => sendCommand({ command: 'skip' })}
@@ -110,6 +127,34 @@ const PresenterPage = (): React.JSX.Element => {
               </button>
             )}
           </div>
+          {waiting?.kind === 'choice' && (
+            <div className="rounded-xl border border-fuchsia-500/50 bg-fuchsia-950/30 p-4">
+              <div className="mb-3 flex items-center gap-2 text-[18px] font-semibold text-white">
+                <Signpost size={20} className="text-fuchsia-400" />
+                {waiting.title || 'Escolha o caminho'}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {waiting.options.map((option, i) => (
+                  <button
+                    key={i}
+                    className="flex items-center gap-3 rounded-lg bg-white/10 px-4 py-3 text-left text-[17px] text-white hover:bg-fuchsia-700"
+                    onClick={() => sendCommand({ command: 'choose', value: i })}
+                  >
+                    <span className="rounded bg-black/40 px-2 font-mono text-[14px]">{i + 1}</span>
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {waiting?.kind === 'lab' && (
+            <button
+              className={clsx(button, 'w-full bg-green-700 text-white hover:bg-green-600')}
+              onClick={() => sendCommand({ command: 'run', value: '' })}
+            >
+              <Play size={20} /> Rodar o código do laboratório
+            </button>
+          )}
           <StepCard label={running ? 'Executando' : 'Passo atual'} step={current} />
           <StepCard label="Próximo passo" step={next} highlight />
         </div>

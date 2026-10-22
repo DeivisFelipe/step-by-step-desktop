@@ -1,6 +1,18 @@
 // Types shared by the main process, the IDE and the presentation pages (OBS overlays).
 
-export type StageView = 'code' | 'terminal' | 'slide' | 'challenge' | 'preview'
+export type StageView = 'code' | 'terminal' | 'slide' | 'challenge' | 'preview' | 'lab'
+
+/** A menu on stage: the presenter picks the path. */
+export interface StageChoice {
+  title: string
+  options: string[]
+}
+
+/** Lab view: code and terminal together. `tab` is the front one in the tabs layout. */
+export interface StageLab {
+  layout: 'horizontal' | 'vertical' | 'tabs'
+  tab: 'code' | 'terminal'
+}
 
 export interface StageHighlight {
   startLine: number
@@ -84,6 +96,8 @@ export interface StagePayload {
   slide: StageSlide | null
   challenge: StageChallenge | null
   preview: string | null
+  choice: StageChoice | null
+  lab: StageLab | null
   /** Public caption of the current step (Markdown). */
   caption: string
   running: boolean
@@ -117,6 +131,8 @@ export interface PresenterPayload {
   runningId: string | null
   sessionStartedAt: number | null
   stepStartedAt: number | null
+  /** What the running step waits for (menu options, or the lab's ▶). */
+  waiting: { kind: 'terminal' | 'lab' | 'choice'; options: string[]; title: string } | null
 }
 
 export type RemoteCommand =
@@ -124,6 +140,10 @@ export type RemoteCommand =
   | { command: 'prev' }
   | { command: 'skip' }
   | { command: 'goto'; stepId: string }
+  /** Menu option (0-based index or label), or a step (number or title) when no menu waits. */
+  | { command: 'choose'; value: number | string }
+  /** Runs a command in a terminal (play buttons of HTML slides); empty = the lab's ▶. */
+  | { command: 'run'; value: string; terminal?: string }
 
 // --- Settings -----------------------------------------------------------------
 

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { PresentationStyle, StagePayload } from '../../shared/presentation'
 import { ChallengeView, Markdown, SlideView, TransitionStack } from '../common/StageViews'
-import { PARAMS, SERVER, useConnection } from './connection'
+import { PARAMS, SERVER, sendCommand, useConnection } from './connection'
 import { usePresentationStyle, useStage } from './style'
 import { AppWindow, Page } from './Frame'
 import { CodeContent } from './CodeContent'
@@ -85,12 +85,15 @@ const StageContent = ({
   stage,
   style,
   part,
-  ready
+  ready,
+  fill = false
 }: {
   stage: StagePayload | null
   style: PresentationStyle
   part: Part
   ready: ReadyHighlighter | null
+  /** Full screen slide: fills the page instead of keeping 16:9. */
+  fill?: boolean
 }): React.JSX.Element | null => {
   const bg = ready?.bg ?? '#1e1e1e'
   const fg = ready?.fg ?? '#d4d4d4'
@@ -106,7 +109,9 @@ const StageContent = ({
           data={slide}
           transition={slide.transition ?? style.slideTransition}
           duration={style.slideTransitionMs}
-          render={(s) => <SlideView slide={s} fontSize={style.slideFontSize} server={SERVER} />}
+          render={(s) => (
+            <SlideView slide={s} fontSize={style.slideFontSize} server={SERVER} fill={fill} />
+          )}
         />
       </Card>
     )
@@ -128,6 +133,41 @@ const StageContent = ({
           {content}
         </div>
       </Card>
+    )
+  }
+
+  if (view === 'lab' && stage?.lab) {
+    const codeWindow = (
+      <AppWindow style={style} title={stage.code?.path ?? ''} bg={bg} fg={fg}>
+        {stage.code ? <CodeContent code={stage.code} style={style} ready={ready} /> : null}
+      </AppWindow>
+    )
+    const terminalWindow = (
+      <AppWindow style={style} title={stage.terminalName || 'Terminal'} bg={bg} fg={fg}>
+        <TerminalContent
+          terminalId={stage.terminalId}
+          fontSize={style.terminalFontSize}
+          fontFamily={style.fontFamily}
+          background={bg}
+          foreground={fg}
+        />
+      </AppWindow>
+    )
+    if (stage.lab.layout === 'tabs') {
+      // One window at a time: the code while it is edited, the terminal when it runs.
+      return (
+        <div key={stage.lab.tab} className="fade-in h-full w-full">
+          {stage.lab.tab === 'terminal' ? terminalWindow : codeWindow}
+        </div>
+      )
+    }
+    return (
+      <div
+        className={`flex h-full w-full gap-[2%] ${stage.lab.layout === 'vertical' ? 'flex-col' : ''}`}
+      >
+        <div className="min-h-0 min-w-0 flex-1">{codeWindow}</div>
+        <div className="min-h-0 min-w-0 flex-1">{terminalWindow}</div>
+      </div>
     )
   }
 
@@ -165,7 +205,17 @@ const StagePage = ({ part }: { part: Part }): React.JSX.Element => {
   const baseStyle = usePresentationStyle()
   const stage = useStage()
   const fullscreen = isFullscreenSlide(stage, part, baseStyle)
-  const style = fullscreen ? { ...baseStyle, padding: 0, radius: 0, shadow: false } : baseStyle
+  // Full screen: 100% of the page in both directions, without the page background.
+  const style: PresentationStyle = fullscreen
+    ? {
+        ...baseStyle,
+        padding: 0,
+        radius: 0,
+        shadow: false,
+        aspect: 'livre',
+        transparent: true
+      }
+    : baseStyle
   const ready = useHighlighter(style.theme, stage?.code?.language ?? 'text')
   const showCaption = part === 'auto' && style.captionPosition !== 'none'
   const caption = showCaption ? (
@@ -177,7 +227,7 @@ const StagePage = ({ part }: { part: Part }): React.JSX.Element => {
     return (
       <Page style={style}>
         <FitArea>
-          <StageContent stage={stage} style={style} part={part} ready={ready} />
+          <StageContent stage={stage} style={style} part={part} ready={ready} fill />
         </FitArea>
         {caption && (
           <div
@@ -188,6 +238,7 @@ const StagePage = ({ part }: { part: Part }): React.JSX.Element => {
             {caption}
           </div>
         )}
+        {part === 'auto' && <ChoiceOverlay stage={stage} />}
       </Page>
     )
   }
@@ -199,7 +250,37 @@ const StagePage = ({ part }: { part: Part }): React.JSX.Element => {
         <StageContent stage={stage} style={style} part={part} ready={ready} />
       </FitArea>
       {style.captionPosition === 'bottom' && caption && <div className="mt-[2%]">{caption}</div>}
+      {part === 'auto' && <ChoiceOverlay stage={stage} />}
     </Page>
+  )
+}
+
+/** The menu of the running step, over whatever is on stage. Clickable with the token. */
+const ChoiceOverlay = ({ stage }: { stage: StagePayload | null }): React.JSX.Element | null => {
+  const authorized = useConnection((s) => s.authorized)
+  const choice = stage?.choice
+  if (!choice) return null
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40">
+      <div className="caption-in min-w-[40%] max-w-[80%] rounded-3xl bg-[#0f172a]/95 p-[2.5%] text-white shadow-2xl">
+        {choice.title && (
+          <div className="mb-[4%] text-center text-[52px] font-semibold">{choice.title}</div>
+        )}
+        <div className="flex flex-col gap-5">
+          {choice.options.map((option, i) => (
+            <button
+              key={i}
+              disabled={!authorized}
+              onClick={() => sendCommand({ command: 'choose', value: i })}
+              className="flex items-center gap-6 rounded-2xl bg-white/10 px-8 py-5 text-left text-[40px] enabled:hover:bg-fuchsia-700"
+            >
+              <span className="rounded-xl bg-fuchsia-600 px-4 font-mono text-[34px]">{i + 1}</span>
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -249,6 +330,32 @@ const ProgressPage = (): React.JSX.Element => {
 const OverlayApp = (): React.JSX.Element => {
   const page = pageName()
   const fullscreen = !['aluno', 'apresentador'].includes(page)
+
+  // Buttons of HTML slides (proximoPasso / rodarComando) work on pages opened with the token.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent): void => {
+      if (!useConnection.getState().authorized) return
+      const fromSlide = [...document.querySelectorAll('iframe')].some(
+        (frame) => frame.contentWindow === event.source && /\/slides\/[0-9a-f]+$/.test(frame.src)
+      )
+      if (!fromSlide) return
+      const data = event.data as { ssc?: string; value?: unknown; terminal?: unknown }
+      if (
+        data?.ssc === 'proximoPasso' &&
+        (typeof data.value === 'number' || typeof data.value === 'string')
+      ) {
+        sendCommand({ command: 'choose', value: data.value })
+      } else if (data?.ssc === 'rodarComando' && typeof data.value === 'string' && data.value) {
+        sendCommand({
+          command: 'run',
+          value: data.value,
+          terminal: typeof data.terminal === 'string' ? data.terminal : undefined
+        })
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [])
 
   useEffect(() => {
     document.body.classList.toggle('no-scroll', fullscreen)

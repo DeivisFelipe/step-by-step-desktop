@@ -23,7 +23,7 @@ const StatusBar = (): React.JSX.Element => {
   const tree = useLessonStore((s) => s.tree)
   const history = usePlayerStore((s) => s.history)
   const runningStepId = usePlayerStore((s) => s.runningStepId)
-  const paused = usePauseStore((s) => s.paused)
+  const waiting = usePauseStore((s) => s.kind)
   const terminalVisible = useIDEStore((s) => s.terminalVisible)
   const updater = useSettingsStore((s) => s.updater)
 
@@ -69,7 +69,7 @@ const StatusBar = (): React.JSX.Element => {
         </button>
       )}
 
-      {running && paused && (
+      {running && waiting === 'terminal' && (
         <button
           className={item}
           onClick={() => usePlayerStore.getState().runNext()}
@@ -79,7 +79,13 @@ const StatusBar = (): React.JSX.Element => {
           Código pronto — F8 para rodar o comando
         </button>
       )}
-      {running && !paused && (
+      {running && waiting === 'lab' && (
+        <span className={item}>Laboratório — Ctrl+Enter roda, F8 continua</span>
+      )}
+      {running && waiting === 'choice' && (
+        <span className={item}>Escolha um caminho (teclas 1 a 9)</span>
+      )}
+      {running && !waiting && (
         <button
           className={item}
           onClick={() => usePlayerStore.getState().skip()}

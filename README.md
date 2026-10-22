@@ -30,9 +30,11 @@ Baixe o `step-by-step-code-x.y.z-setup.exe` da [página de releases](https://git
   - **Desafio**: enunciado com cronômetro.
   - **Preview**: mostra uma página (URL ou arquivo do projeto).
   - **Cena do OBS**: troca a cena da transmissão.
+  - **Laboratório**: código e terminal juntos no palco (lado a lado, empilhados ou em abas); o professor edita o código ao vivo e roda com ▶ (`Ctrl+Enter`) quantas vezes quiser.
+- **Aulas com caminhos**: **menu de escolha** (o professor escolhe por botão, teclas 1–9, celular ou por um botão dentro de um slide HTML com `proximoPasso(n)`), **se / senão** (saída do terminal, arquivo existe ou contém, variável) e **ir para**. Tudo editável também no diagrama do fluxo.
 - **Legenda** (pública, aparece para a turma) e **notas do apresentador** (privadas) em cada passo.
 - **Variáveis** `[[Nome:valor]]` no conteúdo, ajustáveis antes de executar.
-- **Diagrama do fluxo**: ligue um passo a outro para mudar a ordem.
+- **Diagrama do fluxo**: arraste os passos para mudar a ordem e ligue as opções de menu e condições aos passos de destino.
 - **Ensaio da aula**: roda tudo sem animação numa cópia e aponta o que falharia (arquivos que não existem, textos não encontrados, linhas fora do arquivo, imagens faltando). Também pode executar os comandos numa pasta temporária.
 - **Criar passos a partir do git**: cada commit escolhido vira um passo.
 - **Aula em Markdown**: importe e exporte a aula num formato de texto fácil de escrever e revisar ([formato](docs/formato-aula.md)).

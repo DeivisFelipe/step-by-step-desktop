@@ -16,6 +16,8 @@ import { useStageStore } from '../store/useStageStore'
 import { useSettingsStore } from '../store/useSettingsStore'
 import { useAnnotatorStore } from '../store/useAnnotatorStore'
 import Annotator from './UI/Annotator'
+import PauseBar from './PauseBar'
+import { runLabCommand, usePauseStore } from '../engine/ExecutionEngine'
 
 function useGlobalShortcuts(): void {
   useEffect(() => {
@@ -31,9 +33,20 @@ function useGlobalShortcuts(): void {
       // Form fields keep PageUp/PageDown; the code editor (presenting) does not.
       const inForm =
         !!target?.matches?.('input, select, textarea') && !target.closest('.monaco-editor')
+      const waiting = usePauseStore.getState().kind
       let handled = true
 
-      if (e.key === 'F8' && !e.shiftKey) player.runNext()
+      // A menu waiting for a path: keys 1–9 pick it (not while typing in a field or the editor).
+      if (
+        waiting === 'choice' &&
+        /^[1-9]$/.test(e.key) &&
+        !ctrl &&
+        !target?.matches?.('input, select, textarea') &&
+        !target?.closest('.monaco-editor')
+      ) {
+        player.choose(Number(e.key) - 1)
+      } else if (waiting === 'lab' && ctrl && e.key === 'Enter') runLabCommand()
+      else if (e.key === 'F8' && !e.shiftKey) player.runNext()
       else if (e.key === 'F8' && e.shiftKey) player.undoLast()
       // Presentation clickers send PageDown / PageUp.
       else if (clicker && !inForm && e.key === 'PageDown' && !ctrl) player.runNext()
@@ -116,6 +129,7 @@ const Layout = (): React.JSX.Element => {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="relative min-h-0 flex-1">
             <MainEditor />
+            <PauseBar />
           </div>
           {terminalVisible && (
             <Splitter axis="y" size={terminalHeight} onResize={setTerminalHeight} invert />
