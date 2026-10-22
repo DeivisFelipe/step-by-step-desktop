@@ -46,7 +46,10 @@ describe('aulas de exemplo', () => {
 
   for (const { pasta } of catalog) {
     describe(pasta, () => {
-      const source = fs.readFileSync(path.join(dir, pasta, '.stepbystep', 'aula.md'), 'utf8')
+      // Windows checkouts may turn line endings into CRLF.
+      const source = fs
+        .readFileSync(path.join(dir, pasta, '.stepbystep', 'aula.md'), 'utf8')
+        .replace(/\r\n?/g, '\n')
       const parsed = parseLessonMarkdown(source)
       const saved = JSON.parse(
         fs.readFileSync(path.join(dir, pasta, '.stepbystep', 'lesson.json'), 'utf8')
